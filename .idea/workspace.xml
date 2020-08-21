@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="7a337e51-b0c7-4a98-b6a0-ee9aada72e79" name="Default Changelist" comment="" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ProjectId" id="1gPdsLuqZ7MpaqCxgFOf8Y2l55X" />
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="project.structure.last.edited" value="Modules" />
+    <property name="project.structure.proportion" value="0.15" />
+    <property name="project.structure.side.proportion" value="0.2" />
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="7a337e51-b0c7-4a98-b6a0-ee9aada72e79" name="Default Changelist" comment="" />
+      <created>1598020366147</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1598020366147</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="553" y="180" key="#Project_Structure" timestamp="1598020390816">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="553" y="180" key="#Project_Structure/0.0.1920.1040@0.0.1920.1040" timestamp="1598020390816" />
+  </component>
+</project>
