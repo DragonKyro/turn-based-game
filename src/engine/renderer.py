@@ -69,19 +69,46 @@ def draw_attack_range(tiles: set[Coord]) -> None:
 
 
 def draw_selection(coord: Coord) -> None:
+    """Thick gold ring + subtle fill tint on the selected tile."""
     col, row = coord
+    left = col * TILE_SIZE
+    bottom = row * TILE_SIZE
+    # Subtle fill (semi-transparent gold)
+    arcade.draw_lbwh_rectangle_filled(
+        left, bottom, TILE_SIZE, TILE_SIZE, (255, 215, 60, 55)
+    )
+    # Thick outer ring + thin inner ring for readability on any terrain
     arcade.draw_lbwh_rectangle_outline(
-        col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE, COLORS["selection"], 3
+        left, bottom, TILE_SIZE, TILE_SIZE, COLORS["selection"], 4
+    )
+    arcade.draw_lbwh_rectangle_outline(
+        left + 3, bottom + 3, TILE_SIZE - 6, TILE_SIZE - 6, (30, 20, 10), 1
     )
 
 
-def draw_buildings(state: GameState, vis: list[list[VisState]] | None) -> None:
+def draw_hover(coord: Coord) -> None:
+    """Thin outline on the hovered tile to anchor the cursor visually."""
+    col, row = coord
+    arcade.draw_lbwh_rectangle_outline(
+        col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE, (240, 240, 250, 140), 2
+    )
+
+
+def draw_buildings(state: GameState, vis: list[list[VisState]] | None,
+                   view_player_id: int) -> None:
     for b in state.buildings.values():
         col, row = b.coord
         if _vis_at(vis, col, row) == VisState.HIDDEN:
             continue
         cx, cy = grid_to_pixel(b.coord, TILE_SIZE)
         sprites.draw_building(b, cx, cy)
+        # Gray-out scrim on our own exhausted production buildings.
+        if b.owner_id == view_player_id and b.has_produced:
+            arcade.draw_lbwh_rectangle_filled(
+                col * TILE_SIZE + 2, row * TILE_SIZE + 2,
+                TILE_SIZE - 4, TILE_SIZE - 4,
+                (15, 15, 25, 140),
+            )
 
 
 def draw_units(state: GameState, vis: list[list[VisState]] | None,

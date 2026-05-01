@@ -122,11 +122,7 @@ def _ai_production(state: GameState, ai_id: int) -> list[dict]:
     # Repeat until no progress is made (each building can only spawn once per turn since the
     # tile gets occupied by the new unit).
     for b in list(state.buildings.values()):
-        if b.owner_id != ai_id or not type(b).produces_kinds:
-            continue
-        # Can't spawn on an occupied tile.
-        tile = state.map.tile(b.coord)
-        if tile.unit_id is not None and state.units.get(tile.unit_id) and state.units[tile.unit_id].is_alive:
+        if b.owner_id != ai_id or not type(b).produces_kinds or b.has_produced:
             continue
         gold = state.players[ai_id].gold
         affordable = [

@@ -14,7 +14,7 @@ from src.core.actions import (
     MoveAction,
 )
 from src.core.combat import resolve_attack
-from src.core.economy import can_afford, can_place_unit_at
+from src.core.economy import can_afford
 from src.core.fog import recompute_visibility
 from src.core.game_state import GameState, VictoryResult
 from src.core.pathfinding import attackable_from, reachable
@@ -159,8 +159,8 @@ def _apply_build(state: GameState, a: BuildAction) -> list[Event]:
         raise IllegalAction(f"{b.kind} does not produce units")
     if not b.can_produce(a.unit_kind):
         raise IllegalAction(f"{b.kind} cannot produce {a.unit_kind}")
-    if not can_place_unit_at(state, b.coord):
-        raise IllegalAction("Building tile is occupied")
+    if b.has_produced:
+        raise IllegalAction(f"{b.kind} has already produced a unit this turn")
 
     # Heroes are not buyable; only UNIT_REGISTRY kinds.
     unit_cls = UNIT_REGISTRY.get(a.unit_kind)
@@ -172,16 +172,53 @@ def _apply_build(state: GameState, a: BuildAction) -> list[Event]:
     if not can_afford(state, b.owner_id, cost):
         raise IllegalAction(f"Not enough gold for {a.unit_kind} (need {cost})")
 
+    # Spawn on an adjacent passable empty tile (Wargroove-style).
+    spawn_coord = _find_spawn_neighbor(state, b.coord, unit_cls.unit_class)
+    if spawn_coord is None:
+        raise IllegalAction(f"No open adjacent tile for {a.unit_kind} to deploy")
+
     new_id = state.allocate_id()
-    unit = unit_cls(id=new_id, owner_id=b.owner_id, coord=b.coord, hp=unit_cls.max_hp)
-    unit.has_moved = True  # freshly built units cannot move/act this turn
+    unit = unit_cls(id=new_id, owner_id=b.owner_id, coord=spawn_coord, hp=unit_cls.max_hp)
+    unit.has_moved = True   # freshly built units cannot move/act this turn
     unit.has_acted = True
     state.units[new_id] = unit
-    state.map.tile(b.coord).unit_id = new_id
+    state.map.tile(spawn_coord).unit_id = new_id
     state.players[b.owner_id].gold -= cost
+    b.has_produced = True
 
     recompute_visibility(state, b.owner_id)
-    return [{"type": "unit_built", "unit_id": new_id, "kind": a.unit_kind, "coord": b.coord}]
+    return [{"type": "unit_built", "unit_id": new_id, "kind": a.unit_kind, "coord": spawn_coord}]
+
+
+def _find_spawn_neighbor(state: GameState, origin, unit_class) -> tuple[int, int] | None:
+    """Return the first 4-adjacent tile that is in-bounds, passable for `unit_class`,
+    and has no living unit on it. Order (N, E, S, W) is stable so spawns are predictable.
+    Buildings on the tile are fine — we can spawn onto, say, a Mine."""
+    col, row = origin
+    # Prefer cardinal order that reads cleanly: above, right, below, left.
+    for dc, dr in ((0, 1), (1, 0), (0, -1), (-1, 0)):
+        c = (col + dc, row + dr)
+        if not state.map.in_bounds(c):
+            continue
+        tile = state.map.tile(c)
+        if not tile.terrain.passable_for(unit_class):
+            continue
+        occupant = state.units.get(tile.unit_id) if tile.unit_id is not None else None
+        if occupant is not None and occupant.is_alive:
+            continue
+        return c
+    # Last resort: also check diagonals so a fully hemmed-in building can still produce.
+    for dc, dr in ((1, 1), (1, -1), (-1, -1), (-1, 1)):
+        c = (col + dc, row + dr)
+        if not state.map.in_bounds(c):
+            continue
+        tile = state.map.tile(c)
+        if not tile.terrain.passable_for(unit_class):
+            continue
+        occupant = state.units.get(tile.unit_id) if tile.unit_id is not None else None
+        if occupant is None or not occupant.is_alive:
+            return c
+    return None
 
 
 def _apply_ultimate(state: GameState, a: ActivateUltimateAction) -> list[Event]:

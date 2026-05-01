@@ -66,13 +66,16 @@ def test_ai_ends_the_turn():
 
 
 def test_ai_produces_units_when_affordable():
-    barracks = Barracks(id=99, coord=(7, 2), owner_id=2)
-    state = _state(ai_starts_at=(0, 1), enemy_at=(4, 1), extras=(barracks,))
+    barracks = Barracks(id=99, coord=(4, 1), owner_id=2)  # adjacent tiles free
+    state = _state(ai_starts_at=(1, 1), enemy_at=(7, 1), extras=(barracks,))
     state.players[2].gold = 500  # enough for infantry (cost 100)
     unit_count_before = len(state.units)
     take_turn(state)
     assert len(state.units) > unit_count_before
-    # The new unit should be at the barracks coord.
-    new_units = [u for u in state.units.values() if u.coord == (7, 2)]
-    assert len(new_units) == 1
-    assert new_units[0].owner_id == 2
+    # New unit must belong to P2 and be adjacent to the barracks (adjacent-spawn rule).
+    bx, by = barracks.coord
+    new_units = [
+        u for u in state.units.values()
+        if u.owner_id == 2 and abs(u.coord[0] - bx) + abs(u.coord[1] - by) == 1
+    ]
+    assert len(new_units) >= 1

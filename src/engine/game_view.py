@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import arcade
 
-from src.config import COLORS, TILE_SIZE
+from src.config import COLORS, PROJECT_ROOT, TILE_SIZE
 from src.core.actions import ActivateUltimateAction, BuildAction, EndTurnAction
 from src.core.ai import take_turn as ai_take_turn
 from src.core.coord import grid_to_pixel, pixel_to_grid
 from src.core.fog import recompute_visibility
 from src.core.game_rules import IllegalAction, apply_action
 from src.core.pathfinding import attackable_from, reachable
+from src.core.persistence import SaveLoadError, load_from_path, save_to_path
 from src.core.types import VisState
 from src.engine import renderer
 from src.engine.camera import Cameras
@@ -108,11 +109,15 @@ class GameView(arcade.View):
 
         self.cameras.world.use()
         renderer.draw_terrain(self.state, vis)
-        renderer.draw_buildings(self.state, vis)
+        renderer.draw_buildings(self.state, vis, view_player_id)
         if self.reachable_tiles:
             renderer.draw_move_range(self.reachable_tiles)
         if self.attack_tiles:
             renderer.draw_attack_range(self.attack_tiles)
+        # Hover ring (below selection so selection wins when they coincide).
+        if self.hover_coord is not None and self.state.map.in_bounds(self.hover_coord):
+            if vis is None or vis[self.hover_coord[0]][self.hover_coord[1]] != VisState.HIDDEN:
+                renderer.draw_hover(self.hover_coord)
         renderer.draw_units(self.state, vis, view_player_id, self._anim_time)
         if self.selected_unit_id is not None:
             u = self.state.units.get(self.selected_unit_id)
@@ -217,14 +222,23 @@ class GameView(arcade.View):
         if not self.state.map.in_bounds(coord):
             return
 
-        # If the human clicks their own production building with no selection, open the menu.
+        # If the human clicks their own production building with no selection AND no unit
+        # is on that tile, open the build menu. A unit standing on the building always wins
+        # the click so it can be selected — otherwise a freshly-built or repositioned unit
+        # sitting on its base would be unreachable behind the menu trigger.
         b = self.state.building_at(coord)
-        if self.selected_unit_id is None and b is not None:
-            if (b.owner_id == self.state.current_player_id
-                    and type(b).produces_kinds
-                    and not self.state.players[self.state.current_player_id].is_ai):
+        u_here = self.state.unit_at(coord)
+        if (self.selected_unit_id is None
+                and b is not None
+                and u_here is None
+                and b.owner_id == self.state.current_player_id
+                and type(b).produces_kinds
+                and not self.state.players[self.state.current_player_id].is_ai):
+            if b.has_produced:
+                self.banner = f"{type(b).__name__} already produced this turn"
+            else:
                 self.build_menu = BuildMenu(building=b, gold=self.state.players[b.owner_id].gold)
-                return
+            return
 
         click = interpret_click(
             self.state, self.selected_unit_id, coord, self.reachable_tiles or None
@@ -273,6 +287,10 @@ class GameView(arcade.View):
 
         if symbol == arcade.key.ESCAPE:
             self._return_to_menu()
+        elif symbol == arcade.key.F5:
+            self._quicksave()
+        elif symbol == arcade.key.F9:
+            self._quickload()
         elif symbol == arcade.key.E:
             try:
                 events = apply_action(self.state, EndTurnAction())
@@ -393,3 +411,36 @@ class GameView(arcade.View):
     def _return_to_menu(self) -> None:
         from src.engine.menu_view import MenuView
         self.window.show_view(MenuView())
+
+    # --- save / load ---
+
+    def _quicksave_path(self):
+        return PROJECT_ROOT / "saves" / "quicksave.json"
+
+    def _quicksave(self) -> None:
+        if self.state is None or self.state.victory is not None:
+            return
+        try:
+            save_to_path(self.state, self._quicksave_path())
+            self.banner = f"Quicksaved ({self._quicksave_path().name})"
+        except (OSError, SaveLoadError) as e:
+            self.banner = f"Save failed: {e}"
+
+    def _quickload(self) -> None:
+        path = self._quicksave_path()
+        if not path.exists():
+            self.banner = "No quicksave to load"
+            return
+        try:
+            new_state = load_from_path(path)
+        except SaveLoadError as e:
+            self.banner = f"Load failed: {e}"
+            return
+        self.state = new_state
+        # view_player_id stays pinned to the human; refresh their fog for the loaded state.
+        recompute_visibility(self.state, self.view_player_id)
+        self._update_selection(None)
+        self.build_menu = None
+        self.banner = f"Loaded quicksave ({path.name})"
+        # If the loaded file left an AI on the clock, schedule them.
+        self._schedule_ai_if_needed()

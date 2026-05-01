@@ -32,6 +32,10 @@ def end_turn(state: GameState) -> dict:
         u.has_moved = False
         u.has_acted = False
 
+    # Reset "produced this turn" on the incoming player's buildings so they can build again.
+    for b in state.buildings_of(next_id):
+        b.has_produced = False
+
     # refresh fog for the incoming player
     recompute_visibility(state, next_id)
 

@@ -13,6 +13,7 @@ class Building:
     coord: Coord
     owner_id: int | None  # None = neutral / capturable
     capture_progress: int = 0
+    has_produced: bool = False  # flipped True after producing; reset on turn start
 
     kind: ClassVar[str] = ""
     display_letter: ClassVar[str] = "?"

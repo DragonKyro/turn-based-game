@@ -314,21 +314,21 @@ def draw_unit(u: Unit, cx: float, cy: float, dimmed: bool, anim_time: float = 0.
     # Ground shadow (static; stays put while sprite bobs).
     arcade.draw_ellipse_filled(cx, cy - size * 0.42, size * 0.38, size * 0.08, _SHADOW)
 
-    # Compute per-kind idle offset / extras.
+    # Compute per-kind idle offset / extras. Dimmed (spent) units still animate —
+    # the color alone signals "acted" while the bob confirms the sprite is alive.
     bob = 0.0
     wing_scale = 1.0
     rock_deg = 0.0
-    if not dimmed:  # don't animate units that already acted — looks more "at attention"
-        if kind == "wyvern":
-            wing_scale = 1.0 + 0.15 * math.sin(anim_time * 6.0 + phase)
-            bob = math.sin(anim_time * 3.0 + phase) * 1.5
-        elif kind == "longship":
-            rock_deg = math.sin(anim_time * 1.5 + phase) * 3.0
-            bob = math.sin(anim_time * 1.5 + phase) * 1.5
-        elif kind in ("emberlord", "frostqueen"):
-            bob = math.sin(anim_time * 1.8 + phase) * 1.2
-        else:
-            bob = math.sin(anim_time * 2.0 + phase) * 1.0
+    if kind == "wyvern":
+        wing_scale = 1.0 + 0.15 * math.sin(anim_time * 6.0 + phase)
+        bob = math.sin(anim_time * 3.0 + phase) * 1.5
+    elif kind == "longship":
+        rock_deg = math.sin(anim_time * 1.5 + phase) * 3.0
+        bob = math.sin(anim_time * 1.5 + phase) * 1.5
+    elif kind in ("emberlord", "frostqueen"):
+        bob = math.sin(anim_time * 1.8 + phase) * 1.2
+    else:
+        bob = math.sin(anim_time * 2.0 + phase) * 1.0
 
     dy = bob
     if kind == "infantry":

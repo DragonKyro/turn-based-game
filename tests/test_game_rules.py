@@ -97,11 +97,15 @@ def test_build_spends_gold_and_creates_unit():
     events = apply_action(state, BuildAction(building_id=11, unit_kind="infantry"))
     ev = events[0]
     assert ev["type"] == "unit_built"
-    assert ev["coord"] == (0, 2)
+    # Wargroove-style adjacent spawn: unit appears on a tile next to the building, not on it.
+    col, row = state.buildings[11].coord
+    spawn_col, spawn_row = ev["coord"]
+    assert abs(spawn_col - col) + abs(spawn_row - row) == 1
     new_id = ev["unit_id"]
     assert state.units[new_id].hp == Infantry.max_hp
     assert state.units[new_id].has_moved and state.units[new_id].has_acted
     assert state.players[1].gold == gold_before - Infantry.cost
+    assert state.buildings[11].has_produced is True
 
 
 def test_build_rejected_if_poor():

@@ -30,6 +30,7 @@ pytest                    # all pure-logic tests (no arcade needed)
 | `E` | End turn |
 | `U` | Activate selected hero's ultimate (when fully charged) |
 | Arrow keys | Pan camera |
+| `F5` / `F9` | Quicksave / load quicksave |
 | `Esc` | Back to menu |
 
 ### Extending the game
