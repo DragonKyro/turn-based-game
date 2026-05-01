@@ -30,20 +30,25 @@ class MenuView(arcade.View):
         btn_w = 260
         btn_h = 56
         btn_x = WINDOW_WIDTH // 2 - btn_w // 2
-        gap = 18
-        y = WINDOW_HEIGHT // 2 - 20
+        gap = 14
+        y = WINDOW_HEIGHT // 2 - 10
 
         self._play_btn = Button(
             label="Play — First Clash",
             left=btn_x, bottom=y, width=btn_w, height=btn_h,
             on_click=self._start_game,
         )
+        self._options_btn = Button(
+            label="Options",
+            left=btn_x, bottom=y - btn_h - gap, width=btn_w, height=btn_h,
+            on_click=self._open_options,
+        )
         self._quit_btn = Button(
             label="Quit",
-            left=btn_x, bottom=y - btn_h - gap, width=btn_w, height=btn_h,
+            left=btn_x, bottom=y - 2 * (btn_h + gap), width=btn_w, height=btn_h,
             on_click=self._quit,
         )
-        self._buttons = [self._play_btn, self._quit_btn]
+        self._buttons = [self._play_btn, self._options_btn, self._quit_btn]
 
     def on_show_view(self) -> None:
         self.window.background_color = COLORS["background"]
@@ -80,6 +85,10 @@ class MenuView(arcade.View):
     def _start_game(self) -> None:
         from src.engine.game_view import GameView
         self.window.show_view(GameView(DEFAULT_LEVEL))
+
+    def _open_options(self) -> None:
+        from src.engine.options_view import OptionsView
+        self.window.show_view(OptionsView())
 
     def _quit(self) -> None:
         self.window.close()

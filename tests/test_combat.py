@@ -1,7 +1,8 @@
 """Combat math tests. Each factor is isolated so a regression is easy to localize."""
 from __future__ import annotations
 
-from src.core.combat import resolve_attack
+import random
+from src.core.combat import predict_attack, resolve_attack
 from src.core.game_state import GameState
 from src.core.player import Player
 from src.entities.units.infantry import Infantry
@@ -53,26 +54,24 @@ def test_base_damage_suppressed_modifiers():
     a = Knight(id=1, owner_id=1, coord=(0, 0), hp=8)   # 8/12 = 0.666 < 0.75
     d = Knight(id=2, owner_id=2, coord=(1, 0), hp=Knight.max_hp)
     state = _state_with(a, d, attacker_terrain=FOREST, defender_terrain=FOREST)
-    r = resolve_attack(state, a.id, d.id)
+    # Use predict_attack (no roll) for deterministic assertions on per-factor damage.
+    r = predict_attack(state, a.id, d.id)
     # No RPS (knight not strong vs knight), no crit. base = 7 * 0.666 ≈ 4.67 -> 5.
     # defender on forest: defense_bonus=2 * defender hp_ratio=1.0 -> reduction=2
-    # final = 5 - 2 = 3
+    # final = 5 - 2 = 3 (midpoint); rolled damage will be in [2, 4].
     assert r.attack.rps_bonus == 0
     assert r.attack.crit_bonus == 0
     assert r.attack.terrain_reduction == 2
     assert r.attack.final == 3
+    assert r.attack.damage_min <= r.attack.final <= r.attack.damage_max
 
 
 def test_rps_bonus_fires_for_strong_matchup():
     # Infantry strong vs Wyvern. Attacker on plains (not forest, not adjacent to commander hero).
     a = Infantry(id=1, owner_id=1, coord=(0, 0), hp=Infantry.max_hp)
     d = Wyvern(id=2, owner_id=2, coord=(1, 0), hp=Wyvern.max_hp)
-    # No hero for P1 -> adjacent_to_commander crit predicate returns False.
-    # Plains terrain -> on_terrain("forest") crit predicate returns False.
     state = _state_with(a, d, attacker_terrain=PLAINS, defender_terrain=PLAINS, hero_id_for_p1=None)
-    r = resolve_attack(state, a.id, d.id)
-    # base=5*1.0=5, rps_mult=1.5, crit_mult=1.0, terrain=0 (plains def 0).
-    # final = 5 * 1.5 = 7.5 -> 8
+    r = predict_attack(state, a.id, d.id)
     assert r.attack.rps_bonus > 0
     assert r.attack.crit_bonus == 0
     assert r.attack.final >= r.attack.base
@@ -83,9 +82,7 @@ def test_crit_fires_on_forest():
     a = Infantry(id=1, owner_id=1, coord=(0, 0), hp=Infantry.max_hp)
     d = Infantry(id=2, owner_id=2, coord=(1, 0), hp=Infantry.max_hp)
     state = _state_with(a, d, attacker_terrain=FOREST, defender_terrain=PLAINS, hero_id_for_p1=None)
-    r = resolve_attack(state, a.id, d.id)
-    # base=5, rps=1.0 (not strong vs infantry), crit=1.5 (on forest), terrain=0 (plains).
-    # final = 5 * 1.5 = 7.5 -> 8
+    r = predict_attack(state, a.id, d.id)
     assert r.attack.rps_bonus == 0
     assert r.attack.crit_bonus > 0
 
@@ -95,11 +92,12 @@ def test_terrain_reduction_mountain():
     a = Infantry(id=1, owner_id=1, coord=(0, 0), hp=Infantry.max_hp)
     d = Infantry(id=2, owner_id=2, coord=(1, 0), hp=Infantry.max_hp)
     state = _state_with(a, d, attacker_terrain=PLAINS, defender_terrain=MOUNTAIN, hero_id_for_p1=None)
-    r = resolve_attack(state, a.id, d.id)
+    r = predict_attack(state, a.id, d.id)
     # base=5, terrain_reduction = 4 * 1.0 = 4
     assert r.attack.terrain_reduction == 4
-    # final = 5 - 4 = 1
+    # midpoint final = 1; rolled final is in [damage_min, damage_max]
     assert r.attack.final == 1
+    assert r.attack.damage_min <= 1 <= r.attack.damage_max
 
 
 def test_counter_attack_when_defender_alive_and_in_range():
@@ -121,6 +119,15 @@ def test_no_counter_when_out_of_range():
     # Infantry cannot actually walk on sea in the real game, but combat math doesn't care about that.
     r = resolve_attack(state, a.id, d.id)
     assert r.counter is None
+
+
+def test_resolve_attack_rolls_final_within_range():
+    # Seeded rng so the test is deterministic across environments.
+    a = Infantry(id=1, owner_id=1, coord=(0, 0), hp=Infantry.max_hp)
+    d = Infantry(id=2, owner_id=2, coord=(1, 0), hp=Infantry.max_hp)
+    state = _state_with(a, d, hero_id_for_p1=None)
+    r = resolve_attack(state, a.id, d.id, rng=random.Random(7))
+    assert r.attack.damage_min <= r.attack.final <= r.attack.damage_max
 
 
 def test_hero_gains_charge_on_damage():

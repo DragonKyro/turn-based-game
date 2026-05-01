@@ -130,7 +130,7 @@ def _draw_mountain(cx: float, cy: float, rng: random.Random, fog: float) -> None
 
     # Pick one big peak and optionally a smaller second one.
     big_dx = rng.choice([-0.12, 0.0, 0.12])
-    big_height = rng.uniform(0.35, 0.42)
+    big_height = rng.uniform(0.30, 0.38)
     peak_x = cx + big_dx * TILE_SIZE
     base_y = cy - TILE_SIZE * 0.28
     peak_y = cy + TILE_SIZE * big_height
@@ -167,29 +167,42 @@ def _draw_mountain(cx: float, cy: float, rng: random.Random, fog: float) -> None
 
 
 # -----------------------------------------------------------------------------
-# Road: cobblestone texture that tries to "connect" by repeating a stable pattern.
+# Road: cobblestone texture. Geometry is clipped inside the tile to avoid
+# spill-over onto neighboring terrain that made the road look like rocks.
 # -----------------------------------------------------------------------------
 def _draw_road(coord: tuple[int, int], cx: float, cy: float,
                 rng: random.Random, fog: float) -> None:
     light = _apply_fog((205, 185, 135), fog)
     dark = _apply_fog((160, 140, 95), fog)
     line = _apply_fog((120, 100, 70), fog)
-    # Underlay slightly darker than the terrain base
     arcade.draw_lbwh_rectangle_filled(
         cx - TILE_SIZE / 2, cy - TILE_SIZE / 2, TILE_SIZE, TILE_SIZE, light
     )
-    # Diagonal paving bricks, 3x3 grid offset by row
+    # 4x4 brick grid with a 2-px inset on all sides — bricks never touch the tile edge.
     col, row = coord
-    n = 3
-    cell = TILE_SIZE / n
+    inset = 2
+    usable = TILE_SIZE - 2 * inset
+    n = 4
+    cell_w = usable / n
+    cell_h = usable / n
+    brick_gap = 1
+    # Per-row horizontal shift alternates so rows "interlock" like brickwork.
     for gr in range(n):
+        row_shift = (cell_w / 2) if (gr + row) % 2 else 0
         for gc in range(n):
-            px = cx - TILE_SIZE / 2 + gc * cell + (cell * 0.5 if (gr + row) % 2 else 0.1)
-            py = cy - TILE_SIZE / 2 + gr * cell + 2
-            # brick colors alternate subtly
+            px = cx - TILE_SIZE / 2 + inset + gc * cell_w + row_shift
+            py = cy - TILE_SIZE / 2 + inset + gr * cell_h
+            # Clip any brick that would exceed the usable region.
+            right = cx - TILE_SIZE / 2 + inset + usable
+            if px >= right:
+                continue
+            w = min(cell_w - brick_gap, right - px - brick_gap)
+            h = cell_h - brick_gap
+            if w <= 0:
+                continue
             color = dark if (gc + gr + col + row) % 2 else light
-            arcade.draw_lbwh_rectangle_filled(px, py, cell - 2, cell - 3, color)
-            arcade.draw_lbwh_rectangle_outline(px, py, cell - 2, cell - 3, line, 1)
+            arcade.draw_lbwh_rectangle_filled(px, py, w, h, color)
+            arcade.draw_lbwh_rectangle_outline(px, py, w, h, line, 1)
 
 
 # -----------------------------------------------------------------------------

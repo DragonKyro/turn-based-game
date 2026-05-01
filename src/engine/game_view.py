@@ -16,6 +16,7 @@ from src.core.coord import grid_to_pixel, pixel_to_grid
 from src.core.fog import recompute_visibility
 from src.core.game_rules import IllegalAction, apply_action
 from src.core.pathfinding import attackable_from, reachable
+from src.core.options import Options
 from src.core.persistence import SaveLoadError, load_from_path, save_to_path
 from src.core.types import VisState
 from src.engine import renderer
@@ -24,6 +25,7 @@ from src.engine.input_controller import interpret_click
 from src.entities.hero import Hero
 from src.ui import damage_preview
 from src.ui.build_menu import BuildMenu
+from src.ui.fight_scene import FightScene
 from src.ui.hud import HUD, VictoryOverlay
 from src.ui.terrain_info import TerrainInfo
 from src.ui.unit_panel import UnitPanel
@@ -51,6 +53,8 @@ class GameView(arcade.View):
         self._ai_pending: bool = False
         self._ai_delay: float = 0.0
         self._anim_time: float = 0.0  # accumulated seconds since load; drives idle animations
+        self._fight_scene: FightScene | None = None
+        self._options: Options = Options.load()
 
         # UI objects (arcade.Text caches live on these)
         self._hud: HUD | None = None
@@ -154,6 +158,10 @@ class GameView(arcade.View):
         if self.state.victory is not None:
             self._victory_overlay.draw(self.state)
 
+        # Fight-scene overlay on top of everything else.
+        if self._fight_scene is not None:
+            self._fight_scene.draw()
+
     def _draw_damage_preview(self) -> None:
         """Shown when a unit is selected and you hover over a targetable enemy."""
         assert self.state is not None
@@ -173,11 +181,9 @@ class GameView(arcade.View):
             return
 
         hx, hy = grid_to_pixel(self.hover_coord, TILE_SIZE)
-        # Bubble background
-        label = f"~{result.attack.final}"
-        if result.counter:
-            label += f" / cnt {result.counter.final}"
-        bubble_w = 10 + len(label) * 8
+        # Bubble background — show a RANGE now, not a point estimate.
+        label = damage_preview.format_range(result)
+        bubble_w = 12 + len(label) * 7
         arcade.draw_lbwh_rectangle_filled(
             hx - bubble_w / 2, hy + TILE_SIZE * 0.5, bubble_w, 20, COLORS["ui_panel"]
         )
@@ -205,6 +211,10 @@ class GameView(arcade.View):
 
     def on_mouse_press(self, x: int, y: int, button: int, _modifiers: int) -> None:
         if self.state is None or self.state.victory is not None:
+            return
+        # Any click skips the fight scene.
+        if self._fight_scene is not None:
+            self._fight_scene = None
             return
 
         # If a build menu is open, route the click into it first.
@@ -267,6 +277,11 @@ class GameView(arcade.View):
     def on_key_press(self, symbol: int, _modifiers: int) -> None:
         if self.state is None:
             return
+        # Space (or any key) cuts the fight scene short.
+        if self._fight_scene is not None:
+            if symbol in (arcade.key.SPACE, arcade.key.ENTER, arcade.key.ESCAPE):
+                self._fight_scene = None
+            return
 
         if self.state.victory is not None:
             if symbol == arcade.key.ESCAPE:
@@ -324,6 +339,14 @@ class GameView(arcade.View):
 
     def on_update(self, delta_time: float) -> None:
         self._anim_time += delta_time
+        # Tick the fight-scene overlay if one is showing.
+        if self._fight_scene is not None:
+            self._fight_scene.tick(delta_time)
+            if self._fight_scene.done:
+                self._fight_scene = None
+        # Pause AI while a fight scene is playing so the player can watch it.
+        if self._fight_scene is not None:
+            return
         if self._ai_pending and self.state is not None and self.state.victory is None:
             self._ai_delay -= delta_time
             if self._ai_delay <= 0:
@@ -372,6 +395,9 @@ class GameView(arcade.View):
         if u is None or not u.is_alive:
             self.selected_unit_id = None
             return
+        # Range overlays only make sense for your own actable units.
+        if u.owner_id != self.state.current_player_id:
+            return
         if not u.has_moved:
             self.reachable_tiles = reachable(self.state, u)
         if not u.has_acted:
@@ -389,6 +415,8 @@ class GameView(arcade.View):
                     f"Attack: {r.attack.final} dmg"
                     + (f", counter {r.counter.final}" if r.counter else "")
                 )
+                if self._options.show_fight_scene:
+                    self._trigger_fight_scene(r)
             elif t == "unit_destroyed":
                 parts.append(f"Unit {e['unit_id']} destroyed")
             elif t == "capture_progress":
@@ -407,6 +435,26 @@ class GameView(arcade.View):
             elif t == "victory":
                 parts.append(f"Victory: P{e['winner_id']} ({e['reason']})")
         self.banner = "   ".join(parts) if parts else None
+
+    def _trigger_fight_scene(self, result) -> None:
+        """Create a one-shot fight-scene overlay from a CombatResult."""
+        assert self.state is not None
+        a_id = result.attack.attacker_id
+        d_id = result.attack.defender_id
+        attacker = self.state.units.get(a_id)
+        defender = self.state.units.get(d_id)
+        if attacker is None or defender is None:
+            return
+        self._fight_scene = FightScene(
+            attacker_kind=attacker.kind,
+            attacker_faction=self.state.players[attacker.owner_id].faction,
+            attacker_owner=attacker.owner_id,
+            defender_kind=defender.kind,
+            defender_faction=self.state.players[defender.owner_id].faction,
+            defender_owner=defender.owner_id,
+            result=result,
+            duration=self._options.fight_scene_duration,
+        )
 
     def _return_to_menu(self) -> None:
         from src.engine.menu_view import MenuView

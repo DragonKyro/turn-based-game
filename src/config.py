@@ -34,7 +34,7 @@ COLORS = {
     "mountain":      (120, 100, 80),
     "road":          (190, 170, 120),
     "sea":           (48, 94, 160),
-    "grid_line":     (40, 40, 45),
+    "grid_line":     (55, 55, 62),
 
     # Players
     "player1":       (205, 70, 55),   # Emberdyne red-orange

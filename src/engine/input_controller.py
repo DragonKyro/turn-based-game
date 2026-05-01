@@ -44,8 +44,13 @@ def interpret_click(
 
     # Nothing selected yet.
     if selected_unit_id is None:
-        if clicked_unit and clicked_unit.owner_id == state.current_player_id and not clicked_unit.has_acted:
-            return ClickResult(actions=[], new_selection=clicked_unit.id, new_selection_coord=clicked_unit.coord)
+        if clicked_unit:
+            # Own unit that can still act: select it normally (range overlays computed below).
+            # Enemy unit OR own-spent unit: select for viewing only (panel shows stats).
+            return ClickResult(
+                actions=[], new_selection=clicked_unit.id,
+                new_selection_coord=clicked_unit.coord,
+            )
         return ClickResult(actions=[], new_selection=None, new_selection_coord=None)
 
     selected = state.units.get(selected_unit_id)
@@ -67,6 +72,11 @@ def interpret_click(
                     new_selection=None,
                     new_selection_coord=None,
                 )
+        # Can't attack — show the enemy's stats instead.
+        return ClickResult(
+            actions=[], new_selection=clicked_unit.id,
+            new_selection_coord=clicked_unit.coord,
+        )
 
     # Capture: infantry stands on a capturable building.
     if (

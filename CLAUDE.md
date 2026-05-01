@@ -48,6 +48,9 @@ grep -rn "import arcade" src/core src/entities src/world
 | Hover terrain-info panel | [src/ui/terrain_info.py](src/ui/terrain_info.py) |
 | Dumb AI for is_ai players | [src/core/ai.py](src/core/ai.py) |
 | Save / load (JSON) | [src/core/persistence.py](src/core/persistence.py) — `saves/quicksave.json` via F5/F9 |
+| User options (persisted) | [src/core/options.py](src/core/options.py) — `saves/options.json` |
+| Fight-scene overlay | [src/ui/fight_scene.py](src/ui/fight_scene.py) |
+| Options menu screen | [src/engine/options_view.py](src/engine/options_view.py) |
 | Unit base + ClassVar stats | [src/entities/unit.py](src/entities/unit.py) |
 | Hero base (ultimate_charge) | [src/entities/hero.py](src/entities/hero.py) |
 | Building base + flavours | [src/entities/building.py](src/entities/building.py) |

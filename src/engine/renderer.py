@@ -124,7 +124,8 @@ def draw_units(state: GameState, vis: list[list[VisState]] | None,
             continue
         cx, cy = grid_to_pixel(u.coord, TILE_SIZE)
         dimmed = u.has_acted and u.owner_id == view_player_id
-        sprites.draw_unit(u, cx, cy, dimmed, anim_time)
+        faction = state.players[u.owner_id].faction
+        sprites.draw_unit(u, cx, cy, dimmed, anim_time, faction=faction)
 
 
 def _darken(color: tuple[int, ...], factor: float) -> tuple[int, int, int]:

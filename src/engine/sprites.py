@@ -301,7 +301,10 @@ def _draw_generic_building(cx: float, cy: float, s: float, team: tuple[int, int,
 # Unit sprites
 # -----------------------------------------------------------------------------
 
-def draw_unit(u: Unit, cx: float, cy: float, dimmed: bool, anim_time: float = 0.0) -> None:
+def draw_unit(u: Unit, cx: float, cy: float, dimmed: bool,
+              anim_time: float = 0.0, faction: str = "Emberdyne") -> None:
+    """Draw a unit. `faction` picks the emblem motif (flame for Emberdyne,
+    snowflake for Frostmoor) so same-kind units on different factions still read as distinct."""
     team = _team_color(u.owner_id)
     if dimmed:
         team = _darken(team, 0.55)
@@ -332,13 +335,13 @@ def draw_unit(u: Unit, cx: float, cy: float, dimmed: bool, anim_time: float = 0.
 
     dy = bob
     if kind == "infantry":
-        _draw_infantry(cx, cy + dy, size, team)
+        _draw_infantry(cx, cy + dy, size, team, faction=faction)
     elif kind == "knight":
-        _draw_knight(cx, cy + dy, size, team)
+        _draw_knight(cx, cy + dy, size, team, faction=faction)
     elif kind == "wyvern":
-        _draw_wyvern(cx, cy + dy, size, team, wing_scale=wing_scale)
+        _draw_wyvern(cx, cy + dy, size, team, wing_scale=wing_scale, faction=faction)
     elif kind == "longship":
-        _draw_longship(cx, cy + dy, size, team, rock_deg=rock_deg)
+        _draw_longship(cx, cy + dy, size, team, rock_deg=rock_deg, faction=faction)
     elif kind == "emberlord":
         _draw_emberlord(cx, cy + dy, size, team, dimmed=dimmed, anim_time=anim_time, phase=phase)
     elif kind == "frostqueen":
@@ -376,8 +379,11 @@ def _draw_hp_bar(cx: float, cy: float, hp: int, max_hp: int) -> None:
     arcade.draw_lbwh_rectangle_outline(left, cy, w, h, _DARK_STEEL, 1)
 
 
-def _draw_infantry(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> None:
-    """A soldier: rounded helmet + visor + breastplate + shield + spear."""
+def _draw_infantry(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                   faction: str = "Emberdyne") -> None:
+    """A soldier: rounded helmet + visor + breastplate + shield + spear.
+
+    Faction affects the emblem on the shield (flame = Emberdyne, snowflake = Frostmoor)."""
     # (Shadow drawn in draw_unit at static y.)
     # Body (tabard — team color, wide at waist)
     arcade.draw_polygon_filled(
@@ -402,11 +408,11 @@ def _draw_infantry(cx: float, cy: float, s: float, team: tuple[int, int, int]) -
          (cx, head_y + s * 0.22)],
         team,
     )
-    # Shield on left arm (gold emblem)
+    # Shield on left arm (faction emblem in the center)
     sx = cx - s * 0.3
     arcade.draw_ellipse_filled(sx, cy + s * 0.04, s * 0.14, s * 0.22, _darken(team, 0.6))
     arcade.draw_ellipse_outline(sx, cy + s * 0.04, s * 0.14, s * 0.22, _DARK_STEEL, 1)
-    arcade.draw_circle_filled(sx, cy + s * 0.04, s * 0.035, _GOLD)
+    _draw_faction_emblem(sx, cy + s * 0.04, s * 0.12, faction)
     # Spear (right side, diagonal)
     spear_bottom = (cx + s * 0.28, cy - s * 0.32)
     spear_top = (cx + s * 0.42, cy + s * 0.4)
@@ -418,8 +424,10 @@ def _draw_infantry(cx: float, cy: float, s: float, team: tuple[int, int, int]) -
     )
 
 
-def _draw_knight(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> None:
-    """Mounted knight: horse silhouette beneath a lance-wielding rider."""
+def _draw_knight(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                 faction: str = "Emberdyne") -> None:
+    """Mounted knight: horse silhouette beneath a lance-wielding rider.
+    Faction adds a flame or snowflake accent above the lance pennant."""
     # Horse body
     body_left = cx - s * 0.36
     body_bottom = cy - s * 0.3
@@ -462,16 +470,17 @@ def _draw_knight(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> 
         [lance_tip, (lance_tip[0] - 3, lance_tip[1] - 7), (lance_tip[0] + 5, lance_tip[1] - 3)],
         _STEEL,
     )
-    # Lance pennant (team)
+    # Lance pennant (team) + faction emblem just above the lance tip
     arcade.draw_polygon_filled(
         [lance_start, (lance_start[0] + s * 0.12, lance_start[1] + 4),
          (lance_start[0] + s * 0.12, lance_start[1] - 4)],
         team,
     )
+    _draw_faction_emblem(lance_tip[0] + 4, lance_tip[1] + 4, s * 0.08, faction)
 
 
 def _draw_wyvern(cx: float, cy: float, s: float, team: tuple[int, int, int],
-                 wing_scale: float = 1.0) -> None:
+                 wing_scale: float = 1.0, faction: str = "Emberdyne") -> None:
     """Dragon-like flyer: wide spread wings with team-colored membranes.
 
     `wing_scale` stretches the wings vertically — drive it with a sine wave for a flap effect.
@@ -513,15 +522,16 @@ def _draw_wyvern(cx: float, cy: float, s: float, team: tuple[int, int, int],
         body_color,
     )
     _ = head_base  # silence unused
-    # Eye
-    arcade.draw_circle_filled(cx - s * 0.02, cy + s * 0.26, 1.5, _FLAME)
+    # Eye (flame glow for Emberdyne, ice glow for Frostmoor)
+    eye_color = _ICE if faction == "Frostmoor" else _FLAME
+    arcade.draw_circle_filled(cx - s * 0.02, cy + s * 0.26, 1.8, eye_color)
     # Wing bone ridges (team lighten)
     arcade.draw_line(cx - s * 0.05, cy + s * 0.05, cx - s * 0.38, cy + s * 0.3, _lighten(team, 0.3), 2)
     arcade.draw_line(cx + s * 0.05, cy + s * 0.05, cx + s * 0.38, cy + s * 0.3, _lighten(team, 0.3), 2)
 
 
 def _draw_longship(cx: float, cy: float, s: float, team: tuple[int, int, int],
-                    rock_deg: float = 0.0) -> None:
+                    rock_deg: float = 0.0, faction: str = "Emberdyne") -> None:
     """Viking-style longship with striped team-colored sail.
 
     `rock_deg` is provided for a future rocking transform; currently the wave
@@ -573,6 +583,10 @@ def _draw_longship(cx: float, cy: float, s: float, team: tuple[int, int, int],
          (sail_right, sail_top), (sail_left, sail_top)],
         _darken(team, 0.6), 1,
     )
+    # Faction emblem centered on the sail
+    _draw_faction_emblem((sail_left + sail_right) / 2,
+                         (sail_top + sail_bot) / 2,
+                         s * 0.16, faction)
     # Shield row on hull (alternating team color / steel)
     for i in range(5):
         px = cx - s * 0.3 + i * (s * 0.12)
@@ -713,6 +727,45 @@ def _draw_generic_unit(cx: float, cy: float, s: float, team: tuple[int, int, int
 # -----------------------------------------------------------------------------
 # Small helpers
 # -----------------------------------------------------------------------------
+
+def _draw_faction_emblem(cx: float, cy: float, size: float, faction: str) -> None:
+    """Emberdyne: orange flame. Frostmoor: blue snowflake. Unknown: gold spot."""
+    if faction == "Frostmoor":
+        _draw_snowflake(cx, cy, size, _ICE)
+    elif faction == "Emberdyne":
+        _draw_flame(cx, cy, size, _FLAME)
+    else:
+        arcade.draw_circle_filled(cx, cy, max(2, size * 0.35), _GOLD)
+
+
+def _draw_flame(cx: float, cy: float, size: float,
+                color: tuple[int, int, int]) -> None:
+    """Upward-pointing flame teardrop with a hotter core."""
+    tip_y = cy + size * 0.55
+    base_y = cy - size * 0.35
+    half_w = size * 0.32
+    arcade.draw_polygon_filled(
+        [(cx - half_w, base_y), (cx + half_w, base_y), (cx, tip_y)],
+        color,
+    )
+    arcade.draw_polygon_filled(
+        [(cx - half_w * 0.5, base_y + 1), (cx + half_w * 0.5, base_y + 1),
+         (cx, cy + size * 0.38)],
+        (255, 220, 100),
+    )
+
+
+def _draw_snowflake(cx: float, cy: float, size: float,
+                    color: tuple[int, int, int]) -> None:
+    """Six-armed snowflake (three crossed lines) with a small core dot."""
+    r = size * 0.45
+    for angle_deg in (0, 60, 120):
+        rad = math.radians(angle_deg)
+        dx = math.cos(rad) * r
+        dy = math.sin(rad) * r
+        arcade.draw_line(cx - dx, cy - dy, cx + dx, cy + dy, color, 2)
+    arcade.draw_circle_filled(cx, cy, max(1.5, size * 0.12), _lighten(color, 0.4))
+
 
 def _draw_sword(cx: float, cy: float, length: float, angle_deg: float,
                 color: tuple[int, int, int]) -> None:
