@@ -1,0 +1,55 @@
+{
+  "name": "First Clash",
+  "width": 16,
+  "height": 12,
+  "terrain": [
+    "~~~...........FF",
+    "~~~...MM......FF",
+    "~~....MM........",
+    "~.....RRRRR.....",
+    "~..FF..R........",
+    "~..FF..R........",
+    "......RRR...FF..",
+    ".......R....FF..",
+    "......MM........",
+    "......MM......~~",
+    "..............~~",
+    "FF...........~~~"
+  ],
+  "terrain_legend": {
+    ".": "plains",
+    "F": "forest",
+    "M": "mountain",
+    "R": "road",
+    "~": "sea"
+  },
+  "players": [
+    { "id": 1, "name": "Ember",  "faction": "Emberdyne",  "hero": "emberlord",  "start_gold": 1000, "is_ai": false },
+    { "id": 2, "name": "Frost",  "faction": "Frostmoor",  "hero": "frostqueen", "start_gold": 1000, "is_ai": true }
+  ],
+  "buildings": [
+    { "kind": "stronghold", "coord": [1, 1],   "owner": 1 },
+    { "kind": "barracks",   "coord": [3, 1],   "owner": 1 },
+    { "kind": "stable",     "coord": [5, 1],   "owner": 1 },
+    { "kind": "aerie",      "coord": [1, 3],   "owner": 1 },
+
+    { "kind": "stronghold", "coord": [14, 10], "owner": 2 },
+    { "kind": "barracks",   "coord": [12, 10], "owner": 2 },
+    { "kind": "stable",     "coord": [10, 10], "owner": 2 },
+    { "kind": "aerie",      "coord": [14, 8],  "owner": 2 },
+
+    { "kind": "harbor",     "coord": [0, 9],   "owner": null },
+    { "kind": "mine",       "coord": [8, 5],   "owner": null },
+    { "kind": "mine",       "coord": [7, 6],   "owner": null }
+  ],
+  "units": [
+    { "kind": "emberlord", "coord": [2, 2], "owner": 1 },
+    { "kind": "infantry",  "coord": [3, 2], "owner": 1 },
+    { "kind": "infantry",  "coord": [4, 1], "owner": 1 },
+
+    { "kind": "frostqueen", "coord": [13, 9], "owner": 2 },
+    { "kind": "infantry",   "coord": [12, 9], "owner": 2 },
+    { "kind": "infantry",   "coord": [11, 10], "owner": 2 }
+  ],
+  "victory": { "type": "capture_strongholds" }
+}
