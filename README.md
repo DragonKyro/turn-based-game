@@ -4,7 +4,7 @@ A turn-based tactics game in the spirit of **Advance Wars** and **Wargroove**. T
 
 Written in Python 3.11 on [`arcade`](https://api.arcade.academy/) 3.3.
 
-> **Status.** Playable loop is in: select a unit → move-range highlight → click to move → attack-range highlight after moving → click enemy → itemised combat → end turn (E) → income awarded → rotate. Build menu on owned production buildings (digit keys). Fog of war per active player. Hero ultimates fire on `U` when charged. Capture enemy strongholds for victory. AI for player 2 and polish are pending — right now, "ending the turn" on player 2 makes you play both sides.
+> **Status.** v1 single-player-complete. Select a unit → move-range highlight → click to move → attack-range highlight after moving → click enemy → itemised combat. Hover over an enemy in range to preview damage. Build from your own production buildings (digit keys). Fog of war per active player. Hero ultimates fire on `U` when charged. Capture an enemy HQ to win. Player 2 is driven by a minimal AI that moves toward the nearest enemy, attacks if in range, and produces cheap units with its gold.
 
 ---
 
@@ -31,6 +31,18 @@ pytest                    # all pure-logic tests (no arcade needed)
 | `U` | Activate selected hero's ultimate (when fully charged) |
 | Arrow keys | Pan camera |
 | `Esc` | Back to menu |
+
+### Extending the game
+
+**New level:** drop a JSON file into [src/data/levels/](src/data/levels/) following the schema in [src/data/levels/schema.md](src/data/levels/schema.md). Change `DEFAULT_LEVEL` in [src/config.py](src/config.py) to point to it (or wire a level-select menu later).
+
+**New unit kind:** add a subclass in `src/entities/units/` following the pattern in [src/entities/units/infantry.py](src/entities/units/infantry.py). Register it in [src/entities/units/__init__.py](src/entities/units/__init__.py). Attach positional crit rules from [src/entities/crit_rules.py](src/entities/crit_rules.py) (or write your own predicate).
+
+**New building kind:** add a subclass in `src/entities/buildings/` and register it. Production buildings set `produces_class` and `produces_kinds`; currency buildings set `gold_per_turn`.
+
+**New hero:** subclass [src/entities/hero.py](src/entities/hero.py), implement `activate_ultimate(state) -> list[dict]`, register in `src/entities/heroes/__init__.py`.
+
+All of the above work through the existing action spine ([src/core/game_rules.py](src/core/game_rules.py)) with no engine changes needed.
 
 ## Project layout
 
@@ -97,5 +109,5 @@ See `C:\Users\klui\.claude\plans\generic-dreaming-wand.md` for the full plan. Cu
 - [x] Hero ultimates wired (Emberlord AoE dmg, Frostqueen AoE heal)
 - [x] Minimal HUD + build menu popup
 - [x] Capture → victory
-- [ ] Dumb AI for player 2
-- [ ] UX polish (action menu popup on unit right-click, damage preview on enemy hover, better unit panel)
+- [x] Dumb AI for player 2 (moves toward nearest enemy, attacks, spends gold on cheapest unit)
+- [x] UX polish: cached HUD `arcade.Text`, unit-info panel, damage preview on enemy hover

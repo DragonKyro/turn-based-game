@@ -40,6 +40,9 @@ grep -rn "import arcade" src/core src/entities src/world
 | Click → Action translator | [src/engine/input_controller.py](src/engine/input_controller.py) |
 | HUD / banner / victory overlay | [src/ui/hud.py](src/ui/hud.py) |
 | Build menu popup | [src/ui/build_menu.py](src/ui/build_menu.py) |
+| Unit-info panel | [src/ui/unit_panel.py](src/ui/unit_panel.py) |
+| Damage preview (non-mutating prediction) | [src/ui/damage_preview.py](src/ui/damage_preview.py) |
+| Dumb AI for is_ai players | [src/core/ai.py](src/core/ai.py) |
 | Unit base + ClassVar stats | [src/entities/unit.py](src/entities/unit.py) |
 | Hero base (ultimate_charge) | [src/entities/hero.py](src/entities/hero.py) |
 | Building base + flavours | [src/entities/building.py](src/entities/building.py) |
@@ -63,7 +66,7 @@ grep -rn "import arcade" src/core src/entities src/world
 - **Tiles hold IDs, not entities.** `Tile.unit_id` and `Tile.building_id` reference `GameState.units[id]` / `GameState.buildings[id]`. Avoids circular refs and keeps maps trivially serializable.
 - **No turn phase state machine.** Units carry `has_moved` / `has_acted` flags; the turn manager just rotates players. Interleaved move/build/attack order is fine.
 - **Documentation stays current.** Whenever you add or remove a top-level module, update the "Where things live" table in this file *and* the project-layout tree in [README.md](README.md). Same when the roadmap progresses.
-- **Dynamic text rendering.** `arcade.draw_text` is slow for per-frame strings. When building the HUD / unit panel (step 16 polish), switch to `arcade.Text` objects cached on the view.
+- **Dynamic text rendering.** `arcade.draw_text` is slow for per-frame strings. HUD, unit panel, and victory overlay already use cached `arcade.Text` objects. If you add new per-frame text, follow the same pattern (`arcade.Text` instance on the view, mutate `.text` / `.x` / `.y` per frame). The in-map unit-letter labels remain as `draw_text` calls — at v1 scale this is fine, but if maps grow much larger, cache those per-letter too.
 - **Stats in code, levels in JSON.** Do not introduce `units.yaml` / `buildings.yaml` stat tables; keep stats on Python subclasses for IDE / refactor safety. Level data is the only data-driven surface.
 
 ## Running
@@ -76,7 +79,7 @@ pytest             # tests
 
 ## Roadmap position
 
-See the "Roadmap" section of README.md for the live checklist. Playable loop is in (select → move → attack → build → end turn → capture → victory → hero ultimates). Next up: dumb AI for player 2, then UX polish (unit-info panel, damage preview on hover, action-menu popup).
+See the "Roadmap" section of README.md for the live checklist. v1 is feature-complete for single-player: playable loop, fog, capture → victory, hero ultimates, AI opponent, HUD with damage preview and unit-info panel. Next development effort should be gameplay tuning (unit balance, more levels) or v2 features (animations, sound, multi-level campaign, multiplayer, save/load). Do NOT invent scope — ask the user what they want to build next.
 
 ## How actions flow (read before touching input / rules)
 
