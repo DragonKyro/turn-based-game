@@ -1,40 +1,85 @@
-"""Title screen. Press Enter to start a match on the default level."""
+"""Title screen with mouse-clickable buttons + hover highlight."""
 from __future__ import annotations
 
 import arcade
 
 from src.config import COLORS, DEFAULT_LEVEL, WINDOW_HEIGHT, WINDOW_WIDTH
+from src.ui.button import Button
 
 
 class MenuView(arcade.View):
+    def __init__(self) -> None:
+        super().__init__()
+        # Cached text
+        self._title_text = arcade.Text(
+            "EMBERCROWN",
+            WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 120,
+            COLORS["hero_accent"], font_size=64, anchor_x="center", bold=True,
+        )
+        self._subtitle_text = arcade.Text(
+            "A turn-based tactics skirmish",
+            WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 70,
+            COLORS["text_dim"], font_size=18, anchor_x="center",
+        )
+        self._hint_text = arcade.Text(
+            "Click a button below, or use Enter / Esc.",
+            WINDOW_WIDTH // 2, 40,
+            COLORS["text_dim"], font_size=13, anchor_x="center",
+        )
+
+        btn_w = 260
+        btn_h = 56
+        btn_x = WINDOW_WIDTH // 2 - btn_w // 2
+        gap = 18
+        y = WINDOW_HEIGHT // 2 - 20
+
+        self._play_btn = Button(
+            label="Play — First Clash",
+            left=btn_x, bottom=y, width=btn_w, height=btn_h,
+            on_click=self._start_game,
+        )
+        self._quit_btn = Button(
+            label="Quit",
+            left=btn_x, bottom=y - btn_h - gap, width=btn_w, height=btn_h,
+            on_click=self._quit,
+        )
+        self._buttons = [self._play_btn, self._quit_btn]
+
     def on_show_view(self) -> None:
         self.window.background_color = COLORS["background"]
 
     def on_draw(self) -> None:
         self.clear()
-        cx, cy = WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2
-        arcade.draw_text(
-            "EMBERCROWN",
-            cx, cy + 80,
-            COLORS["hero_accent"],
-            font_size=56, anchor_x="center", bold=True,
+        # Decorative banner behind the buttons
+        arcade.draw_lbwh_rectangle_filled(
+            0, WINDOW_HEIGHT // 2 + 60, WINDOW_WIDTH, 2, COLORS["hero_accent"]
         )
-        arcade.draw_text(
-            "A turn-based tactics skirmish",
-            cx, cy + 30,
-            COLORS["text_dim"],
-            font_size=16, anchor_x="center",
-        )
-        arcade.draw_text(
-            "Press [ENTER] to begin    |    [ESC] to quit",
-            cx, cy - 40,
-            COLORS["text"],
-            font_size=18, anchor_x="center",
-        )
+        self._title_text.draw()
+        self._subtitle_text.draw()
+        for b in self._buttons:
+            b.draw()
+        self._hint_text.draw()
+
+    def on_mouse_motion(self, x: int, y: int, _dx: int, _dy: int) -> None:
+        for b in self._buttons:
+            b.set_hovered(b.contains(x, y))
+
+    def on_mouse_press(self, x: int, y: int, _button: int, _mods: int) -> None:
+        for b in self._buttons:
+            if b.on_click_if_inside(x, y):
+                return
 
     def on_key_press(self, symbol: int, _modifiers: int) -> None:
         if symbol == arcade.key.ENTER:
-            from src.engine.game_view import GameView  # local import: engine → engine avoids early arcade-heavy loads
-            self.window.show_view(GameView(DEFAULT_LEVEL))
+            self._start_game()
         elif symbol == arcade.key.ESCAPE:
-            self.window.close()
+            self._quit()
+
+    # --- actions ---
+
+    def _start_game(self) -> None:
+        from src.engine.game_view import GameView
+        self.window.show_view(GameView(DEFAULT_LEVEL))
+
+    def _quit(self) -> None:
+        self.window.close()

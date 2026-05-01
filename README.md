@@ -4,7 +4,7 @@ A turn-based tactics game in the spirit of **Advance Wars** and **Wargroove**. T
 
 Written in Python 3.11 on [`arcade`](https://api.arcade.academy/) 3.3.
 
-> **Status.** v1 single-player-complete. Select a unit → move-range highlight → click to move → attack-range highlight after moving → click enemy → itemised combat. Hover over an enemy in range to preview damage. Build from your own production buildings (digit keys). Fog of war per active player. Hero ultimates fire on `U` when charged. Capture an enemy HQ to win. Player 2 is driven by a minimal AI that moves toward the nearest enemy, attacks if in range, and produces cheap units with its gold.
+> **Status.** v1 single-player-complete. Mouse-clickable menu with hover-lit buttons. Vector sprites for every unit and building (castles, barns, mines, viking longships with striped sails, armored knights with lances, wyverns with team-colored wings, cloaked heroes with flame/ice crowns). Select a unit → move-range highlight → click to move → attack-range highlight after moving → click enemy → itemised combat. Hover over an enemy in range to preview damage. Build from your own production buildings (click HQ/Barracks/Stable/etc, then digit keys). Fog of war per active player. Hero ultimates fire on `U` when charged. Capture an enemy HQ to win. Player 2 is driven by a minimal AI.
 
 ---
 

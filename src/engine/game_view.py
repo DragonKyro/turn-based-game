@@ -287,8 +287,7 @@ class GameView(arcade.View):
         return None
 
     def _screen_to_world(self, x: int, y: int) -> tuple[float, float]:
-        cx, cy = self.cameras.world.position
-        return (x + cx, y + cy)
+        return self.cameras.screen_to_world(x, y)
 
     def _update_selection(self, unit_id: int | None) -> None:
         assert self.state is not None

@@ -1,11 +1,16 @@
-"""Arcade camera wrappers. World camera pans over the map; UI camera stays fixed in screen space."""
+"""Arcade camera wrappers. World camera pans over the map; UI camera stays fixed in screen space.
+
+Important: arcade 3.x `Camera2D.position` is the **center** of the viewport in world coords
+(not the bottom-left). Setting `position = (map_w*tile/2, map_h*tile/2)` centers the map.
+Use `camera.unproject((screen_x, screen_y))` for screen → world conversion.
+"""
 from __future__ import annotations
 
 import arcade
 
-from src.config import TILE_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH
+from src.config import TILE_SIZE
 
-_PAN_STEP = TILE_SIZE  # keyboard pan granularity
+_PAN_STEP = TILE_SIZE
 
 
 class Cameras:
@@ -18,10 +23,15 @@ class Cameras:
         self.world.position = (x + dx, y + dy)
 
     def center_on(self, map_width_tiles: int, map_height_tiles: int) -> None:
-        """Center the world camera on the map center (useful at level start)."""
-        cx = (map_width_tiles * TILE_SIZE) / 2 - WINDOW_WIDTH / 2
-        cy = (map_height_tiles * TILE_SIZE) / 2 - WINDOW_HEIGHT / 2
+        """Center the world camera on the middle of the map."""
+        cx = (map_width_tiles * TILE_SIZE) / 2
+        cy = (map_height_tiles * TILE_SIZE) / 2
         self.world.position = (cx, cy)
+
+    def screen_to_world(self, x: float, y: float) -> tuple[float, float]:
+        """Convert a screen-pixel coordinate into world-pixel coordinates."""
+        v = self.world.unproject((x, y))
+        return (v.x, v.y)
 
     @property
     def pan_step(self) -> float:
