@@ -4,7 +4,7 @@ A turn-based tactics game in the spirit of **Advance Wars** and **Wargroove**. T
 
 Written in Python 3.11 on [`arcade`](https://api.arcade.academy/) 3.3.
 
-> **Status (early scaffold).** The window opens, the menu shows, pressing **Enter** loads the sample level, and terrain + unit + building placements render. Pathfinding, combat, turns, and AI are scheduled next (see the plan in `C:\Users\klui\.claude\plans\generic-dreaming-wand.md`).
+> **Status.** Playable loop is in: select a unit → move-range highlight → click to move → attack-range highlight after moving → click enemy → itemised combat → end turn (E) → income awarded → rotate. Build menu on owned production buildings (digit keys). Fog of war per active player. Hero ultimates fire on `U` when charged. Capture enemy strongholds for victory. AI for player 2 and polish are pending — right now, "ending the turn" on player 2 makes you play both sides.
 
 ---
 
@@ -17,7 +17,20 @@ python main.py            # open the game; Enter to load level 1; Esc to return 
 pytest                    # all pure-logic tests (no arcade needed)
 ```
 
-Arrow keys pan the camera while a level is loaded.
+### Controls
+
+| Key / mouse | Action |
+| --- | --- |
+| Left-click a unit | Select it (shows move range in blue, attack range in red) |
+| Left-click a reachable tile | Move the selected unit there |
+| Left-click an enemy in attack range | Attack (shows itemised damage) |
+| Left-click your own building with no selection | Open build menu |
+| `1`-`9` in build menu | Produce that unit (if you can afford it) |
+| Left-click your selected unit on an enemy building | Capture (infantry only, over multiple turns) |
+| `E` | End turn |
+| `U` | Activate selected hero's ultimate (when fully charged) |
+| Arrow keys | Pan camera |
+| `Esc` | Back to menu |
 
 ## Project layout
 
@@ -77,10 +90,12 @@ See `C:\Users\klui\.claude\plans\generic-dreaming-wand.md` for the full plan. Cu
 - [x] Level JSON loader + sample level + validator
 - [x] Terrain, unit, and building rendering
 - [x] Unit / Hero / Building registries with ClassVar-based stats
-- [ ] Pathfinding + reachable-range overlay
-- [ ] Action spine + Move / Attack / Build / Capture / EndTurn / ActivateUltimate
-- [ ] Turn manager + economy (gold awarded from Mines and Strongholds)
-- [ ] Fog of war (per-player VisState grids)
-- [ ] Hero ultimates wired
+- [x] Pathfinding + reachable-range overlay
+- [x] Action spine + Move / Attack / Build / Capture / EndTurn / ActivateUltimate
+- [x] Turn manager + economy (gold awarded from Mines and Strongholds)
+- [x] Fog of war (per-player VisState grids)
+- [x] Hero ultimates wired (Emberlord AoE dmg, Frostqueen AoE heal)
+- [x] Minimal HUD + build menu popup
+- [x] Capture → victory
 - [ ] Dumb AI for player 2
-- [ ] HUD, unit panel, action menu popup
+- [ ] UX polish (action menu popup on unit right-click, damage preview on enemy hover, better unit panel)

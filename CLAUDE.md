@@ -31,10 +31,15 @@ grep -rn "import arcade" src/core src/entities src/world
 | Coord aliases + enums (UnitClass, VisState) | [src/core/types.py](src/core/types.py) |
 | Grid math (neighbors, manhattan, grid↔pixel) | [src/core/coord.py](src/core/coord.py) |
 | Pure game state | [src/core/game_state.py](src/core/game_state.py) |
-| Action dispatch spine *(planned)* | `src/core/actions.py`, `src/core/game_rules.py` |
-| Combat math *(planned)* | `src/core/combat.py` |
-| Fog-of-war recompute *(planned)* | `src/core/fog.py` |
-| Pathfinding *(planned)* | `src/core/pathfinding.py` |
+| Action dispatch spine | [src/core/actions.py](src/core/actions.py), [src/core/game_rules.py](src/core/game_rules.py) |
+| Combat math (itemised result) | [src/core/combat.py](src/core/combat.py) |
+| Fog-of-war recompute | [src/core/fog.py](src/core/fog.py) |
+| Pathfinding (Dijkstra) | [src/core/pathfinding.py](src/core/pathfinding.py) |
+| Economy (income, purchase gates) | [src/core/economy.py](src/core/economy.py) |
+| Turn rotation | [src/core/turn_manager.py](src/core/turn_manager.py) |
+| Click → Action translator | [src/engine/input_controller.py](src/engine/input_controller.py) |
+| HUD / banner / victory overlay | [src/ui/hud.py](src/ui/hud.py) |
+| Build menu popup | [src/ui/build_menu.py](src/ui/build_menu.py) |
 | Unit base + ClassVar stats | [src/entities/unit.py](src/entities/unit.py) |
 | Hero base (ultimate_charge) | [src/entities/hero.py](src/entities/hero.py) |
 | Building base + flavours | [src/entities/building.py](src/entities/building.py) |
@@ -71,7 +76,17 @@ pytest             # tests
 
 ## Roadmap position
 
-See the "Roadmap" section of README.md for the live checklist. Completed through step 6 (GameState + unit/building sprites render); next up is pathfinding + move-range overlay.
+See the "Roadmap" section of README.md for the live checklist. Playable loop is in (select → move → attack → build → end turn → capture → victory → hero ultimates). Next up: dumb AI for player 2, then UX polish (unit-info panel, damage preview on hover, action-menu popup).
+
+## How actions flow (read before touching input / rules)
+
+1. User clicks a tile (mouse) or presses a hotkey (E / U / digits).
+2. [src/engine/game_view.py](src/engine/game_view.py) converts screen coords → world coords → grid coord, and hands the state, current selection, and reachable set to [src/engine/input_controller.py](src/engine/input_controller.py)`interpret_click`.
+3. `interpret_click` returns a `ClickResult(actions=[...], new_selection=...)`. Actions are defined in [src/core/actions.py](src/core/actions.py) as plain dataclasses.
+4. `GameView._consume_events` passes each action to [src/core/game_rules.py](src/core/game_rules.py)`apply_action(state, action)`, which is the **only** place `GameState` mutates (aside from `turn_manager.end_turn` and `fog.recompute_visibility`).
+5. `apply_action` returns a list of events (small dicts). `GameView` turns the list into banner text for the HUD.
+
+Keep this pipe clean when adding features: new actions go in `actions.py`, new rules go in `game_rules.py`, new UI shortcuts go in `game_view.py`. The AI (when added) will construct and submit the same Action instances.
 
 ## If you're about to change architecture
 
