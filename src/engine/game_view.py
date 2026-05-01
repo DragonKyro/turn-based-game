@@ -52,6 +52,7 @@ class GameView(arcade.View):
         self._unit_panel: UnitPanel | None = None
         self._victory_overlay: VictoryOverlay | None = None
         self._damage_preview_text: arcade.Text | None = None
+        self._load_error_text: arcade.Text | None = None
 
     # --- lifecycle ---
 
@@ -78,10 +79,12 @@ class GameView(arcade.View):
     def on_draw(self) -> None:
         self.clear()
         if self.load_error:
-            arcade.draw_text(
-                f"Failed to load level: {self.load_error}",
-                20, 40, COLORS["text"], font_size=14,
-            )
+            if self._load_error_text is None:
+                self._load_error_text = arcade.Text(
+                    f"Failed to load level: {self.load_error}",
+                    20, 40, COLORS["text"], font_size=14,
+                )
+            self._load_error_text.draw()
             return
         assert self.state is not None
         assert self._hud is not None and self._unit_panel is not None
