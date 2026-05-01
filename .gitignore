@@ -35,6 +35,9 @@ htmlcov/
 # Quicksaves
 saves/
 
+# Procedurally-generated audio (regenerated deterministically on first run)
+assets/audio/
+
 # IDE / editor
 .idea/
 .vscode/

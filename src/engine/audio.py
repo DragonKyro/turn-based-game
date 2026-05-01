@@ -15,9 +15,9 @@ from pathlib import Path
 
 import arcade
 
-from src.config import PROJECT_ROOT
+from src.config import ASSETS_DIR
 
-_AUDIO_DIR = PROJECT_ROOT / "saves" / "audio"
+_AUDIO_DIR = ASSETS_DIR / "audio"
 _SAMPLE_RATE = 22_050
 _AMPLITUDE = 6_000  # int16, safely below clipping when voices sum
 
