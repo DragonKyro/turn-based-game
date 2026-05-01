@@ -7,7 +7,6 @@ from src.core.actions import (
     ActivateUltimateAction,
     AttackAction,
     BuildAction,
-    CaptureAction,
     EndTurnAction,
     MoveAction,
 )
@@ -128,28 +127,46 @@ def test_ultimate_requires_full_charge():
         apply_action(state, ActivateUltimateAction(hero_id=1))
 
 
-def test_capture_requires_adjacency_and_progress():
+def test_attacking_building_reduces_hp_and_flips_ownership_at_zero():
     state = _state()
-    # Move an infantry onto enemy HQ tile would require a long path; cheat by teleport for the test.
+    # Park an infantry adjacent to the enemy stronghold (for deterministic adjacency).
     state.map.tiles[(1, 0)].unit_id = None
-    state.units[2].coord = (5, 5)
-    state.map.tiles[(5, 5)].unit_id = 2
+    state.units[2].coord = (5, 4)  # adjacent to stronghold at (5, 5)
+    state.map.tiles[(5, 4)].unit_id = 2
     state.units[2].has_moved = False
     state.units[2].has_acted = False
 
-    events = apply_action(state, CaptureAction(unit_id=2, building_id=20))
-    # First capture tick: progress bumps by infantry.hp (10), threshold 20 not met.
-    assert events[0]["type"] == "capture_progress"
-    assert state.buildings[20].owner_id == 2  # still theirs
+    hq = state.buildings[20]
+    start_hp = hq.hp
+    events = apply_action(state, AttackAction(unit_id=2, target_building_id=20))
 
-    # Simulate turn rollover (flags reset would happen in end_turn).
-    state.units[2].has_moved = False
-    state.units[2].has_acted = False
-    events = apply_action(state, CaptureAction(unit_id=2, building_id=20))
-    # Second tick reaches threshold -> captured.
-    kinds = [e["type"] for e in events]
-    assert "building_captured" in kinds
+    # Exactly one "building_attacked" event; HP must drop.
+    assert events[0]["type"] == "building_attacked"
+    assert state.buildings[20].hp < start_hp
+    assert state.buildings[20].owner_id == 2
+
+    # Hammer it until it flips. Reset flags between attacks.
+    for _ in range(50):
+        if state.buildings[20].owner_id == 1:
+            break
+        state.units[2].has_moved = False
+        state.units[2].has_acted = False
+        events = apply_action(state, AttackAction(unit_id=2, target_building_id=20))
     assert state.buildings[20].owner_id == 1
+    # HP resets to max after capture
+    assert state.buildings[20].hp == type(state.buildings[20]).max_hp
+
+
+def test_cannot_attack_own_building():
+    state = _state()
+    # P1 infantry attempting to attack P1's own HQ.
+    state.map.tiles[(1, 0)].unit_id = None
+    state.units[2].coord = (0, 2)  # adjacent to own stronghold at (0, 1)
+    state.map.tiles[(0, 2)].unit_id = 2
+    state.units[2].has_moved = False
+    state.units[2].has_acted = False
+    with pytest.raises(IllegalAction, match="own building"):
+        apply_action(state, AttackAction(unit_id=2, target_building_id=10))
 
 
 def test_end_turn_event_reports_current_player():

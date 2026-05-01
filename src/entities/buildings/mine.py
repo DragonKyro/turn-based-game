@@ -10,3 +10,4 @@ class Mine(Building):
     kind: ClassVar[str] = "mine"
     display_letter: ClassVar[str] = "M"
     gold_per_turn: ClassVar[int] = 150
+    max_hp: ClassVar[int] = 10  # cheap income building, easy to flip

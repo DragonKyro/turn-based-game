@@ -89,14 +89,22 @@ def draw_building(b: Building, cx: float, cy: float, faction_key: str | None = N
     else:
         _draw_generic_building(cx, cy, s, color)
 
-    # Capture progress pip
-    threshold = type(b).capture_threshold
-    if b.capture_progress > 0 and threshold:
-        ratio = min(1.0, b.capture_progress / threshold)
-        bar_w = s * 0.8
-        arcade.draw_lbwh_rectangle_filled(
-            cx - bar_w / 2, cy - s / 2 - 6, bar_w * ratio, 3, _GOLD
-        )
+    # HP bar when damaged (hidden when full). Building HP reads left-to-right as damage.
+    max_hp = type(b).max_hp
+    if b.hp < max_hp:
+        ratio = max(0.0, b.hp / max_hp)
+        bar_w = s * 0.85
+        left = cx - bar_w / 2
+        bottom = cy - s / 2 - 6
+        arcade.draw_lbwh_rectangle_filled(left, bottom, bar_w, 4, (20, 20, 28))
+        if ratio > 0.66:
+            fill = (120, 210, 95)
+        elif ratio > 0.33:
+            fill = (230, 200, 70)
+        else:
+            fill = (220, 80, 70)
+        arcade.draw_lbwh_rectangle_filled(left, bottom, bar_w * ratio, 4, fill)
+        arcade.draw_lbwh_rectangle_outline(left, bottom, bar_w, 4, _DARK_STEEL, 1)
 
 
 def _draw_stronghold(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> None:

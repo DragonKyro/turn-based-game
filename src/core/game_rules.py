@@ -9,7 +9,6 @@ from src.core.actions import (
     ActivateUltimateAction,
     AttackAction,
     BuildAction,
-    CaptureAction,
     EndTurnAction,
     MoveAction,
 )
@@ -37,8 +36,6 @@ def apply_action(state: GameState, action: Action) -> list[Event]:
         return _apply_move(state, action)
     if isinstance(action, AttackAction):
         return _apply_attack(state, action)
-    if isinstance(action, CaptureAction):
-        return _apply_capture(state, action)
     if isinstance(action, BuildAction):
         return _apply_build(state, action)
     if isinstance(action, ActivateUltimateAction):
@@ -86,15 +83,25 @@ def _apply_move(state: GameState, a: MoveAction) -> list[Event]:
 
 def _apply_attack(state: GameState, a: AttackAction) -> list[Event]:
     attacker = state.units.get(a.unit_id)
-    defender = state.units.get(a.target_unit_id)
     if attacker is None or not attacker.is_alive:
         raise IllegalAction("Attacker not found")
-    if defender is None or not defender.is_alive:
-        raise IllegalAction("Defender not found")
     if attacker.owner_id != state.current_player_id:
         raise IllegalAction("Cannot attack with opponent's unit")
     if attacker.has_acted:
         raise IllegalAction(f"{attacker.kind} has already acted this turn")
+
+    if (a.target_unit_id is None) == (a.target_building_id is None):
+        raise IllegalAction("Attack must target exactly one of unit or building")
+
+    if a.target_unit_id is not None:
+        return _attack_unit(state, attacker, a.target_unit_id)
+    return _attack_building(state, attacker, a.target_building_id)
+
+
+def _attack_unit(state: GameState, attacker, target_unit_id: int) -> list[Event]:
+    defender = state.units.get(target_unit_id)
+    if defender is None or not defender.is_alive:
+        raise IllegalAction("Defender not found")
     if defender.owner_id == attacker.owner_id:
         raise IllegalAction("Cannot attack own unit")
     reachable_targets = attackable_from(state, attacker, attacker.coord)
@@ -116,40 +123,49 @@ def _apply_attack(state: GameState, a: AttackAction) -> list[Event]:
     return events
 
 
-def _apply_capture(state: GameState, a: CaptureAction) -> list[Event]:
-    u = state.units.get(a.unit_id)
-    b = state.buildings.get(a.building_id)
-    if u is None or not u.is_alive:
-        raise IllegalAction("Capturing unit not found")
+def _attack_building(state: GameState, attacker, target_building_id: int) -> list[Event]:
+    """Wargroove-style capture: attack the building to reduce its HP. At 0 HP ownership
+    flips to the attacker and HP resets to max. Buildings never counter-attack."""
+    b = state.buildings.get(target_building_id)
     if b is None:
-        raise IllegalAction("Building not found")
-    if u.owner_id != state.current_player_id:
-        raise IllegalAction("Not your unit")
-    if u.coord != b.coord:
-        raise IllegalAction("Unit must stand on the building to capture")
-    if u.kind != "infantry":
-        raise IllegalAction("Only infantry can capture")
-    if b.owner_id == u.owner_id:
-        raise IllegalAction("Already owned by this player")
-    if u.has_acted:
-        raise IllegalAction("Unit has already acted this turn")
+        raise IllegalAction("Target building not found")
+    if b.owner_id == attacker.owner_id:
+        raise IllegalAction("Cannot attack your own building")
 
-    b.capture_progress += u.hp  # capture faster with full HP
-    u.has_moved = True
-    u.has_acted = True
+    reachable_targets = attackable_from(state, attacker, attacker.coord)
+    if b.coord not in reachable_targets:
+        raise IllegalAction(f"Building at {b.coord} not in attack range")
 
-    events: list[Event] = [
-        {"type": "capture_progress", "building_id": b.id,
-         "progress": b.capture_progress, "threshold": type(b).capture_threshold}
-    ]
-    if b.capture_progress >= type(b).capture_threshold:
-        b.owner_id = u.owner_id
-        b.capture_progress = 0
-        events.append({"type": "building_captured", "building_id": b.id, "new_owner_id": u.owner_id})
+    # Buildings take attacker.attack damage scaled by the attacker's HP ratio.
+    raw = max(1, int(round(type(attacker).attack * attacker.hp_ratio)))
+    b.hp = max(0, b.hp - raw)
+
+    events: list[Event] = [{
+        "type": "building_attacked",
+        "building_id": b.id,
+        "damage": raw,
+        "building_hp": b.hp,
+        "building_max_hp": type(b).max_hp,
+    }]
+
+    attacker.has_moved = True
+    attacker.has_acted = True
+
+    if b.hp == 0:
+        prev_owner = b.owner_id
+        b.owner_id = attacker.owner_id
+        b.hp = type(b).max_hp
+        b.has_produced = True   # freshly flipped — can't produce the same turn
+        events.append({
+            "type": "building_captured",
+            "building_id": b.id,
+            "new_owner_id": attacker.owner_id,
+            "previous_owner_id": prev_owner,
+        })
+        # The new owner may have gained vision (HQs/mines have vision_range).
+        recompute_visibility(state, attacker.owner_id)
         events.extend(_check_victory(state))
 
-    # capturing the tile reveals new area for the new owner
-    recompute_visibility(state, u.owner_id)
     return events
 
 

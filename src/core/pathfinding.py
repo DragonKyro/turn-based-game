@@ -52,6 +52,11 @@ def reachable(state: GameState, unit: Unit,
             occupant = state.units.get(tile.unit_id) if tile.unit_id is not None else None
             if occupant is not None and occupant.is_alive and occupant.owner_id != unit.owner_id:
                 continue
+            # Buildings owned by others (or neutral) block entry entirely — they have to
+            # be attacked to flip ownership. Own buildings are passable.
+            building = state.buildings.get(tile.building_id) if tile.building_id is not None else None
+            if building is not None and building.owner_id != unit.owner_id:
+                continue
             new_cost = cost_here + step
             if new_cost > budget:
                 continue
@@ -109,6 +114,9 @@ def path_to(state: GameState, unit: Unit, destination: Coord,
                 continue
             occupant = state.units.get(tile.unit_id) if tile.unit_id is not None else None
             if occupant is not None and occupant.is_alive and occupant.owner_id != unit.owner_id:
+                continue
+            building = state.buildings.get(tile.building_id) if tile.building_id is not None else None
+            if building is not None and building.owner_id != unit.owner_id:
                 continue
             new_cost = cost_here + step
             if new_cost > budget:

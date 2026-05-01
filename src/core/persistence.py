@@ -100,7 +100,7 @@ def _serialize_building(b: Any) -> dict[str, Any]:
         "kind": b.kind,
         "owner": b.owner_id,
         "coord": list(b.coord),
-        "capture_progress": b.capture_progress,
+        "hp": b.hp,
         "has_produced": b.has_produced,
     }
 
@@ -166,7 +166,8 @@ def _deserialize(raw: dict[str, Any], source: str) -> GameState:
             id=int(bd["id"]),
             coord=coord,
             owner_id=bd.get("owner"),
-            capture_progress=int(bd.get("capture_progress", 0)),
+            # Accept either the new 'hp' key or fall back to max_hp for legacy saves.
+            hp=int(bd.get("hp", cls.max_hp)),
             has_produced=bool(bd.get("has_produced", False)),
         )
         buildings[b.id] = b

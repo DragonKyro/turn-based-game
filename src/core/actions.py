@@ -14,8 +14,10 @@ class MoveAction:
 
 @dataclass(frozen=True)
 class AttackAction:
+    """Attack a unit OR a building. Exactly one target id must be set."""
     unit_id: int
-    target_unit_id: int
+    target_unit_id: int | None = None
+    target_building_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -23,12 +25,6 @@ class BuildAction:
     building_id: int
     unit_kind: str
     spawn_coord: Coord | None = None   # if set, must be an adjacent valid spawn tile
-
-
-@dataclass(frozen=True)
-class CaptureAction:
-    unit_id: int       # the capturing unit (must be an infantry-class unit on a capturable building)
-    building_id: int
 
 
 @dataclass(frozen=True)
@@ -41,4 +37,4 @@ class EndTurnAction:
     pass
 
 
-Action = MoveAction | AttackAction | BuildAction | CaptureAction | ActivateUltimateAction | EndTurnAction
+Action = MoveAction | AttackAction | BuildAction | ActivateUltimateAction | EndTurnAction

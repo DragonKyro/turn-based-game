@@ -14,7 +14,7 @@ This is intentionally dumb. It plays the game loop end-to-end — it does not pl
 """
 from __future__ import annotations
 
-from src.core.actions import AttackAction, BuildAction, CaptureAction, EndTurnAction, MoveAction
+from src.core.actions import AttackAction, BuildAction, EndTurnAction, MoveAction
 from src.core.coord import manhattan
 from src.core.game_rules import IllegalAction, apply_action
 from src.core.game_state import GameState
@@ -50,21 +50,20 @@ def _unit_take_turn(state: GameState, unit: Unit) -> list[dict]:
     events: list[dict] = []
     ai_id = unit.owner_id
 
-    # Target: nearest enemy.
+    # Candidate targets: enemy units + enemy/neutral buildings.
     enemies = [u for u in state.units.values() if u.is_alive and u.owner_id != ai_id]
-    if not enemies:
-        # No enemies left to shoot. Try capturing instead.
-        events += _maybe_capture(state, unit)
-        return events
+    hostile_buildings = [b for b in state.buildings.values() if b.owner_id != ai_id]
 
-    target = min(enemies, key=lambda e: manhattan(unit.coord, e.coord))
+    target_coord, target_action = _pick_target(unit, enemies, hostile_buildings)
+    if target_coord is None:
+        return events
 
     # 1. Attack from current position if possible.
     if not unit.has_acted:
         atk_set = attackable_from(state, unit, unit.coord)
-        if target.coord in atk_set and target.owner_id != ai_id:
+        if target_coord in atk_set:
             try:
-                events += apply_action(state, AttackAction(unit_id=unit.id, target_unit_id=target.id))
+                events += apply_action(state, target_action(unit.id))
                 return events
             except IllegalAction:
                 pass
@@ -73,17 +72,14 @@ def _unit_take_turn(state: GameState, unit: Unit) -> list[dict]:
     if not unit.has_moved:
         reach = reachable(state, unit)
         if reach:
-            # Prefer destinations from which we can attack the target this turn.
             attackable_destinations = [
                 (c, cost) for c, cost in reach.items()
-                if target.coord in attackable_from(state, unit, c)
+                if target_coord in attackable_from(state, unit, c)
             ]
             if attackable_destinations:
-                # Among those, closest by cost (arrive with most HP / cheapest).
                 dest = min(attackable_destinations, key=lambda p: p[1])[0]
             else:
-                # Just step toward the target.
-                dest = min(reach.keys(), key=lambda c: manhattan(c, target.coord))
+                dest = min(reach.keys(), key=lambda c: manhattan(c, target_coord))
             try:
                 events += apply_action(state, MoveAction(unit_id=unit.id, destination=dest))
             except IllegalAction:
@@ -92,27 +88,32 @@ def _unit_take_turn(state: GameState, unit: Unit) -> list[dict]:
     # 3. If we can now attack, do.
     if not unit.has_acted and unit.is_alive:
         atk_set = attackable_from(state, unit, unit.coord)
-        if target.coord in atk_set and target.is_alive:
+        if target_coord in atk_set:
             try:
-                events += apply_action(state, AttackAction(unit_id=unit.id, target_unit_id=target.id))
+                events += apply_action(state, target_action(unit.id))
             except IllegalAction:
                 pass
 
-    # 4. Try capture if we ended on an enemy building.
-    events += _maybe_capture(state, unit)
     return events
 
 
-def _maybe_capture(state: GameState, unit: Unit) -> list[dict]:
-    if unit.kind != "infantry" or unit.has_acted:
-        return []
-    b = state.building_at(unit.coord)
-    if b is None or b.owner_id == unit.owner_id:
-        return []
-    try:
-        return apply_action(state, CaptureAction(unit_id=unit.id, building_id=b.id))
-    except IllegalAction:
-        return []
+def _pick_target(unit: Unit, enemies: list, hostile_buildings: list):
+    """Pick a target coord + the action factory to attack it.
+
+    Prefers the nearest enemy unit; falls back to the nearest hostile building if no
+    enemy units are visible. Returns (coord_or_None, factory)."""
+    nearest_unit = min(enemies, key=lambda e: manhattan(unit.coord, e.coord)) if enemies else None
+    nearest_bld = min(hostile_buildings, key=lambda b: manhattan(unit.coord, b.coord)) if hostile_buildings else None
+
+    if nearest_unit is not None and nearest_bld is not None:
+        if manhattan(unit.coord, nearest_unit.coord) <= manhattan(unit.coord, nearest_bld.coord) + 2:
+            return nearest_unit.coord, (lambda uid: AttackAction(unit_id=uid, target_unit_id=nearest_unit.id))
+        return nearest_bld.coord, (lambda uid: AttackAction(unit_id=uid, target_building_id=nearest_bld.id))
+    if nearest_unit is not None:
+        return nearest_unit.coord, (lambda uid: AttackAction(unit_id=uid, target_unit_id=nearest_unit.id))
+    if nearest_bld is not None:
+        return nearest_bld.coord, (lambda uid: AttackAction(unit_id=uid, target_building_id=nearest_bld.id))
+    return None, None
 
 
 def _ai_production(state: GameState, ai_id: int) -> list[dict]:

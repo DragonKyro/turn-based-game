@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.core.actions import Action, AttackAction, CaptureAction, MoveAction
+from src.core.actions import Action, AttackAction, MoveAction
 from src.core.coord import manhattan
 from src.core.game_state import GameState
 from src.core.pathfinding import attackable_from
@@ -62,55 +62,30 @@ def interpret_click(
         if not clicked_unit.has_acted:
             return ClickResult(actions=[], new_selection=clicked_unit.id, new_selection_coord=clicked_unit.coord)
 
-    # Attacking / move-then-attack in one click.
+    # Attacking a unit / move-then-attack in one click.
     if clicked_unit and clicked_unit.owner_id != state.current_player_id:
-        if not selected.has_acted:
-            # 1) Already in range from current tile — straight attack.
-            attack_set = attackable_from(state, selected, selected.coord)
-            if clicked in attack_set:
-                return ClickResult(
-                    actions=[AttackAction(unit_id=selected.id, target_unit_id=clicked_unit.id)],
-                    new_selection=None,
-                    new_selection_coord=None,
-                )
-            # 2) Find a reachable tile from which the target IS in range. If one exists,
-            #    queue a Move into that tile followed by the Attack — one click, two actions.
-            if reachable_tiles and not selected.has_moved:
-                best: Coord | None = None
-                best_cost = 10**9
-                for tile, cost in reachable_tiles.items():
-                    if clicked in attackable_from(state, selected, tile):
-                        if cost < best_cost:
-                            best = tile
-                            best_cost = cost
-                if best is not None:
-                    return ClickResult(
-                        actions=[
-                            MoveAction(unit_id=selected.id, destination=best),
-                            AttackAction(unit_id=selected.id, target_unit_id=clicked_unit.id),
-                        ],
-                        new_selection=None,
-                        new_selection_coord=None,
-                    )
-        # Can't reach an attack position — show the enemy's stats instead.
+        result = _build_attack_actions(
+            state, selected, clicked, reachable_tiles, target_unit_id=clicked_unit.id,
+        )
+        if result is not None:
+            return result
+        # Can't reach — show the enemy's stats instead.
         return ClickResult(
             actions=[], new_selection=clicked_unit.id,
             new_selection_coord=clicked_unit.coord,
         )
 
-    # Capture: infantry stands on a capturable building.
+    # Attacking an enemy / neutral building — Wargroove-style capture.
     if (
-        clicked == selected.coord
-        and clicked_building is not None
+        clicked_building is not None
         and clicked_building.owner_id != selected.owner_id
-        and selected.kind == "infantry"
-        and not selected.has_acted
     ):
-        return ClickResult(
-            actions=[CaptureAction(unit_id=selected.id, building_id=clicked_building.id)],
-            new_selection=None,
-            new_selection_coord=None,
+        result = _build_attack_actions(
+            state, selected, clicked, reachable_tiles,
+            target_building_id=clicked_building.id,
         )
+        if result is not None:
+            return result
 
     # Waiting in place (clicking self).
     if clicked == selected.coord and not selected.has_moved:
@@ -131,3 +106,50 @@ def interpret_click(
     # Anything else: clear selection.
     _ = manhattan  # silence unused import in v1
     return ClickResult(actions=[], new_selection=None, new_selection_coord=None)
+
+
+def _build_attack_actions(
+    state: GameState,
+    selected,
+    clicked: Coord,
+    reachable_tiles: dict[Coord, int] | None,
+    *,
+    target_unit_id: int | None = None,
+    target_building_id: int | None = None,
+) -> ClickResult | None:
+    """Shared "click enemy" logic. Produces either a straight attack or
+    [Move, Attack] depending on whether we already have the target in range. Returns
+    None if nothing legal can be done from the current position."""
+    if selected.has_acted:
+        return None
+    attack_set = attackable_from(state, selected, selected.coord)
+    if clicked in attack_set:
+        return ClickResult(
+            actions=[AttackAction(
+                unit_id=selected.id,
+                target_unit_id=target_unit_id,
+                target_building_id=target_building_id,
+            )],
+            new_selection=None, new_selection_coord=None,
+        )
+    if reachable_tiles and not selected.has_moved:
+        best: Coord | None = None
+        best_cost = 10**9
+        for tile, cost in reachable_tiles.items():
+            if clicked in attackable_from(state, selected, tile):
+                if cost < best_cost:
+                    best = tile
+                    best_cost = cost
+        if best is not None:
+            return ClickResult(
+                actions=[
+                    MoveAction(unit_id=selected.id, destination=best),
+                    AttackAction(
+                        unit_id=selected.id,
+                        target_unit_id=target_unit_id,
+                        target_building_id=target_building_id,
+                    ),
+                ],
+                new_selection=None, new_selection_coord=None,
+            )
+    return None

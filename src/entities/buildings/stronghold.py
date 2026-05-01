@@ -12,4 +12,5 @@ class Stronghold(Building):
     is_hq: ClassVar[bool] = True
     gold_per_turn: ClassVar[int] = 200
     vision_range: ClassVar[int] = 3
+    max_hp: ClassVar[int] = 25  # HQs are tougher than ordinary buildings
     # No production — produces_kinds inherited from Building default (empty).
