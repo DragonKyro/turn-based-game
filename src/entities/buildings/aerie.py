@@ -11,4 +11,4 @@ class Aerie(Building):
     kind: ClassVar[str] = "aerie"
     display_letter: ClassVar[str] = "A"
     produces_class: ClassVar[UnitClass | None] = UnitClass.AIR
-    produces_kinds: ClassVar[tuple[str, ...]] = ("wyvern",)
+    produces_kinds: ClassVar[tuple[str, ...]] = ("griffon", "wyvern")

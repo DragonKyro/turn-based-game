@@ -5,11 +5,12 @@ import heapq
 
 from src.core.coord import neighbors4
 from src.core.game_state import GameState
-from src.core.types import IMPASSABLE, Coord
+from src.core.types import IMPASSABLE, Coord, VisState
 from src.entities.unit import Unit
 
 
-def reachable(state: GameState, unit: Unit) -> dict[Coord, int]:
+def reachable(state: GameState, unit: Unit,
+              respect_fog: bool = True) -> dict[Coord, int]:
     """Tiles the unit can reach this turn, mapped to movement-point cost to arrive.
 
     Enemy units block entry. Allied units may be passed through but cannot be a stopping point
@@ -18,6 +19,18 @@ def reachable(state: GameState, unit: Unit) -> dict[Coord, int]:
     start = unit.coord
     budget = type(unit).move
     unit_cls = type(unit).unit_class
+
+    # Fog rule (Wargroove/AW style): a unit cannot step onto a tile that is HIDDEN
+    # to its owner's fog-of-war. Explored and visible tiles are fine — you remember
+    # where the roads were — but you don't blindly charge into unknown territory.
+    player = state.players.get(unit.owner_id)
+    vis = player.visibility if (player and respect_fog) else None
+
+    def _is_hidden(c: Coord) -> bool:
+        if vis is None:
+            return False
+        col, row = c
+        return vis[col][row] == VisState.HIDDEN
 
     dist: dict[Coord, int] = {start: 0}
     frontier: list[tuple[int, Coord]] = [(0, start)]
@@ -33,6 +46,8 @@ def reachable(state: GameState, unit: Unit) -> dict[Coord, int]:
             step = tile.terrain.cost_for(unit_cls)
             if step >= IMPASSABLE:
                 continue
+            if _is_hidden(n):
+                continue  # can't path through fog
             # Enemy unit blocks entirely; allied unit allows passage but not a stopping point.
             occupant = state.units.get(tile.unit_id) if tile.unit_id is not None else None
             if occupant is not None and occupant.is_alive and occupant.owner_id != unit.owner_id:

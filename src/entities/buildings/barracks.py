@@ -11,4 +11,4 @@ class Barracks(Building):
     kind: ClassVar[str] = "barracks"
     display_letter: ClassVar[str] = "B"
     produces_class: ClassVar[UnitClass | None] = UnitClass.LAND
-    produces_kinds: ClassVar[tuple[str, ...]] = ("infantry",)
+    produces_kinds: ClassVar[tuple[str, ...]] = ("infantry", "archer", "spearman")

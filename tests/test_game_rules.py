@@ -17,6 +17,7 @@ from src.core.player import Player
 from src.entities.buildings.barracks import Barracks
 from src.entities.buildings.stronghold import Stronghold
 from src.entities.heroes.emberlord import Emberlord
+from src.core.types import VisState
 from src.entities.units.infantry import Infantry
 from src.entities.units.wyvern import Wyvern
 from src.world.map import Map
@@ -30,10 +31,10 @@ def _state() -> GameState:
         for row in range(6):
             m.tiles[(col, row)] = Tile(terrain=PLAINS)
 
-    p1 = Player(id=1, name="P1", faction="R", gold=500)
-    p1.init_visibility(6, 6)
-    p2 = Player(id=2, name="P2", faction="B", gold=500)
-    p2.init_visibility(6, 6)
+    p1 = Player(id=1, name="P1", faction="emberdyne", gold=500)
+    p1.visibility = [[VisState.VISIBLE for _ in range(6)] for _ in range(6)]
+    p2 = Player(id=2, name="P2", faction="frostmoor", gold=500)
+    p2.visibility = [[VisState.VISIBLE for _ in range(6)] for _ in range(6)]
 
     hero = Emberlord(id=1, owner_id=1, coord=(0, 0), hp=Emberlord.max_hp)
     inf1 = Infantry(id=2, owner_id=1, coord=(1, 0), hp=Infantry.max_hp)

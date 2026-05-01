@@ -62,9 +62,10 @@ def interpret_click(
         if not clicked_unit.has_acted:
             return ClickResult(actions=[], new_selection=clicked_unit.id, new_selection_coord=clicked_unit.coord)
 
-    # Attacking something from current position (no move).
+    # Attacking / move-then-attack in one click.
     if clicked_unit and clicked_unit.owner_id != state.current_player_id:
         if not selected.has_acted:
+            # 1) Already in range from current tile — straight attack.
             attack_set = attackable_from(state, selected, selected.coord)
             if clicked in attack_set:
                 return ClickResult(
@@ -72,7 +73,26 @@ def interpret_click(
                     new_selection=None,
                     new_selection_coord=None,
                 )
-        # Can't attack — show the enemy's stats instead.
+            # 2) Find a reachable tile from which the target IS in range. If one exists,
+            #    queue a Move into that tile followed by the Attack — one click, two actions.
+            if reachable_tiles and not selected.has_moved:
+                best: Coord | None = None
+                best_cost = 10**9
+                for tile, cost in reachable_tiles.items():
+                    if clicked in attackable_from(state, selected, tile):
+                        if cost < best_cost:
+                            best = tile
+                            best_cost = cost
+                if best is not None:
+                    return ClickResult(
+                        actions=[
+                            MoveAction(unit_id=selected.id, destination=best),
+                            AttackAction(unit_id=selected.id, target_unit_id=clicked_unit.id),
+                        ],
+                        new_selection=None,
+                        new_selection_coord=None,
+                    )
+        # Can't reach an attack position — show the enemy's stats instead.
         return ClickResult(
             actions=[], new_selection=clicked_unit.id,
             new_selection_coord=clicked_unit.coord,

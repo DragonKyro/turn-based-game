@@ -94,6 +94,23 @@ def draw_hover(coord: Coord) -> None:
     )
 
 
+def draw_spawn_ghosts(tiles: list[Coord], pulse: float) -> None:
+    """Pulsing gold markers on tiles where a pending unit would deploy."""
+    alpha = int(120 + 70 * pulse)
+    for coord in tiles:
+        col, row = coord
+        left = col * TILE_SIZE + 4
+        bottom = row * TILE_SIZE + 4
+        arcade.draw_lbwh_rectangle_filled(
+            left, bottom, TILE_SIZE - 8, TILE_SIZE - 8,
+            (255, 215, 60, alpha),
+        )
+        arcade.draw_lbwh_rectangle_outline(
+            left, bottom, TILE_SIZE - 8, TILE_SIZE - 8,
+            COLORS["hero_accent"], 3,
+        )
+
+
 def draw_buildings(state: GameState, vis: list[list[VisState]] | None,
                    view_player_id: int) -> None:
     for b in state.buildings.values():
@@ -101,7 +118,8 @@ def draw_buildings(state: GameState, vis: list[list[VisState]] | None,
         if _vis_at(vis, col, row) == VisState.HIDDEN:
             continue
         cx, cy = grid_to_pixel(b.coord, TILE_SIZE)
-        sprites.draw_building(b, cx, cy)
+        faction = state.players[b.owner_id].faction if b.owner_id in state.players else None
+        sprites.draw_building(b, cx, cy, faction_key=faction)
         # Gray-out scrim on our own exhausted production buildings.
         if b.owner_id == view_player_id and b.has_produced:
             arcade.draw_lbwh_rectangle_filled(

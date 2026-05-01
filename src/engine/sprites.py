@@ -14,6 +14,7 @@ import math
 import arcade
 
 from src.config import COLORS, TILE_SIZE
+from src.core.factions import get_faction
 from src.entities.building import Building
 from src.entities.hero import Hero
 from src.entities.unit import Unit
@@ -35,12 +36,22 @@ _ROOF = (90, 55, 55)
 _SEA_DARK = (30, 65, 120)
 
 
-def _team_color(owner_id: int | None) -> tuple[int, int, int]:
+def _team_color(owner_id: int | None, faction_key: str | None = None) -> tuple[int, int, int]:
+    """Primary color for the owner. If a faction is provided its palette wins; otherwise
+    fall back to a stable per-owner-id color."""
+    if faction_key:
+        return get_faction(faction_key).primary
     if owner_id == 1:
         return COLORS["player1"]
     if owner_id == 2:
         return COLORS["player2"]
     return (140, 140, 150)
+
+
+def _team_accent(faction_key: str | None) -> tuple[int, int, int]:
+    if faction_key:
+        return get_faction(faction_key).accent
+    return _GOLD
 
 
 def _darken(color: tuple[int, int, int], factor: float) -> tuple[int, int, int]:
@@ -59,8 +70,8 @@ def _lighten(color: tuple[int, int, int], factor: float) -> tuple[int, int, int]
 # Building sprites
 # -----------------------------------------------------------------------------
 
-def draw_building(b: Building, cx: float, cy: float) -> None:
-    color = _team_color(b.owner_id)
+def draw_building(b: Building, cx: float, cy: float, faction_key: str | None = None) -> None:
+    color = _team_color(b.owner_id, faction_key)
     s = TILE_SIZE * 0.9
     kind = b.kind
     if kind == "stronghold":
@@ -302,10 +313,11 @@ def _draw_generic_building(cx: float, cy: float, s: float, team: tuple[int, int,
 # -----------------------------------------------------------------------------
 
 def draw_unit(u: Unit, cx: float, cy: float, dimmed: bool,
-              anim_time: float = 0.0, faction: str = "Emberdyne") -> None:
-    """Draw a unit. `faction` picks the emblem motif (flame for Emberdyne,
-    snowflake for Frostmoor) so same-kind units on different factions still read as distinct."""
-    team = _team_color(u.owner_id)
+              anim_time: float = 0.0, faction: str = "emberdyne") -> None:
+    """Draw a unit. `faction` is a key from src.core.factions; its palette + emblem motif
+    are used for banner color and emblem decoration so same-kind units on different factions
+    still read as distinct."""
+    team = _team_color(u.owner_id, faction)
     if dimmed:
         team = _darken(team, 0.55)
 
@@ -336,12 +348,24 @@ def draw_unit(u: Unit, cx: float, cy: float, dimmed: bool,
     dy = bob
     if kind == "infantry":
         _draw_infantry(cx, cy + dy, size, team, faction=faction)
+    elif kind == "archer":
+        _draw_archer(cx, cy + dy, size, team, faction=faction, anim_time=anim_time, phase=phase)
+    elif kind == "spearman":
+        _draw_spearman(cx, cy + dy, size, team, faction=faction)
     elif kind == "knight":
         _draw_knight(cx, cy + dy, size, team, faction=faction)
+    elif kind == "scout":
+        _draw_scout(cx, cy + dy, size, team, faction=faction)
+    elif kind == "ballista":
+        _draw_ballista(cx, cy + dy, size, team, faction=faction)
     elif kind == "wyvern":
         _draw_wyvern(cx, cy + dy, size, team, wing_scale=wing_scale, faction=faction)
+    elif kind == "griffon":
+        _draw_griffon(cx, cy + dy, size, team, wing_scale=wing_scale, faction=faction)
     elif kind == "longship":
         _draw_longship(cx, cy + dy, size, team, rock_deg=rock_deg, faction=faction)
+    elif kind == "warship":
+        _draw_warship(cx, cy + dy, size, team, faction=faction)
     elif kind == "emberlord":
         _draw_emberlord(cx, cy + dy, size, team, dimmed=dimmed, anim_time=anim_time, phase=phase)
     elif kind == "frostqueen":
@@ -719,6 +743,244 @@ def _draw_frostqueen(cx: float, cy: float, s: float, team: tuple[int, int, int],
         _ = i
 
 
+def _draw_archer(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                 faction: str, anim_time: float, phase: float) -> None:
+    """Archer: hooded figure with a drawn bow. Bow string twitches slightly."""
+    # Tabard
+    arcade.draw_polygon_filled(
+        [(cx - s * 0.16, cy - s * 0.32),
+         (cx + s * 0.16, cy - s * 0.32),
+         (cx + s * 0.18, cy + s * 0.02),
+         (cx - s * 0.18, cy + s * 0.02)],
+        team,
+    )
+    # Hood (pointed triangle over the head)
+    head_y = cy + s * 0.22
+    arcade.draw_polygon_filled(
+        [(cx - s * 0.13, head_y - s * 0.02),
+         (cx + s * 0.13, head_y - s * 0.02),
+         (cx + s * 0.07, head_y + s * 0.2),
+         (cx - s * 0.07, head_y + s * 0.2)],
+        _darken(team, 0.6),
+    )
+    # Face strip peeking from the hood
+    arcade.draw_lbwh_rectangle_filled(
+        cx - s * 0.06, head_y - s * 0.02, s * 0.12, s * 0.06, (230, 200, 170)
+    )
+    # Bow (curved via 3 line segments) and twitching string
+    bow_x = cx - s * 0.28
+    arcade.draw_line(bow_x, cy + s * 0.22, bow_x + s * 0.04, cy + s * 0.05, _WOOD, 2)
+    arcade.draw_line(bow_x + s * 0.04, cy + s * 0.05, bow_x + s * 0.04, cy - s * 0.05, _WOOD, 2)
+    arcade.draw_line(bow_x + s * 0.04, cy - s * 0.05, bow_x, cy - s * 0.22, _WOOD, 2)
+    string_offset = 2 * math.sin(anim_time * 10 + phase)
+    arcade.draw_line(bow_x, cy + s * 0.22,
+                     bow_x + s * 0.14 + string_offset, cy + s * 0.0,
+                     _STEEL, 1)
+    arcade.draw_line(bow_x + s * 0.14 + string_offset, cy + s * 0.0,
+                     bow_x, cy - s * 0.22, _STEEL, 1)
+    # Arrow on the string
+    arcade.draw_line(bow_x + s * 0.14 + string_offset, cy,
+                     cx + s * 0.2, cy, _darken(_WOOD, 0.5), 2)
+    arcade.draw_polygon_filled(
+        [(cx + s * 0.2, cy), (cx + s * 0.18, cy + 3), (cx + s * 0.3, cy), (cx + s * 0.18, cy - 3)],
+        _STEEL,
+    )
+    # Faction emblem on the tabard belt
+    _draw_faction_emblem(cx, cy - s * 0.14, s * 0.1, faction)
+
+
+def _draw_spearman(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                   faction: str) -> None:
+    """Spearman: kite shield, straight spear, polished helm."""
+    # Body / tabard
+    arcade.draw_polygon_filled(
+        [(cx - s * 0.18, cy - s * 0.32),
+         (cx + s * 0.18, cy - s * 0.32),
+         (cx + s * 0.22, cy + s * 0.02),
+         (cx - s * 0.22, cy + s * 0.02)],
+        team,
+    )
+    # Breastplate
+    arcade.draw_lbwh_rectangle_filled(cx - s * 0.14, cy, s * 0.28, s * 0.2, _STEEL)
+    arcade.draw_lbwh_rectangle_outline(cx - s * 0.14, cy, s * 0.28, s * 0.2, _DARK_STEEL, 1)
+    # Kite shield (left)
+    sx = cx - s * 0.3
+    shield_points = [
+        (sx, cy + s * 0.24),
+        (sx + s * 0.1, cy + s * 0.08),
+        (sx + s * 0.1, cy - s * 0.18),
+        (sx, cy - s * 0.28),
+        (sx - s * 0.1, cy - s * 0.18),
+        (sx - s * 0.1, cy + s * 0.08),
+    ]
+    arcade.draw_polygon_filled(shield_points, _darken(team, 0.6))
+    arcade.draw_polygon_outline(shield_points, _DARK_STEEL, 1)
+    _draw_faction_emblem(sx, cy - s * 0.06, s * 0.14, faction)
+    # Helm (round + cheek plates)
+    head_y = cy + s * 0.28
+    arcade.draw_circle_filled(cx + s * 0.03, head_y, s * 0.12, _STEEL)
+    arcade.draw_arc_filled(cx + s * 0.03, head_y, s * 0.22, s * 0.2, _DARK_STEEL, 180, 360)
+    # Spear (vertical, long)
+    arcade.draw_line(cx + s * 0.26, cy - s * 0.34, cx + s * 0.26, cy + s * 0.45, _WOOD, 2)
+    arcade.draw_polygon_filled(
+        [(cx + s * 0.26, cy + s * 0.45), (cx + s * 0.22, cy + s * 0.38),
+         (cx + s * 0.3, cy + s * 0.38)], _STEEL,
+    )
+
+
+def _draw_scout(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                faction: str) -> None:
+    """Scout: light rider on a tan horse, carrying a small pennant."""
+    horse = _darken((180, 140, 100), 1.0)
+    # Horse body (stretched, lower profile than knight's)
+    arcade.draw_ellipse_filled(cx, cy - s * 0.18, s * 0.4, s * 0.12, horse)
+    for dx in (-s * 0.24, -s * 0.1, s * 0.08, s * 0.22):
+        arcade.draw_line(cx + dx, cy - s * 0.26, cx + dx, cy - s * 0.38, _darken(horse, 0.7), 2)
+    # Horse neck + head
+    arcade.draw_line(cx + s * 0.25, cy - s * 0.14, cx + s * 0.36, cy + s * 0.02, horse, 5)
+    arcade.draw_ellipse_filled(cx + s * 0.38, cy + s * 0.04, s * 0.07, s * 0.05, horse)
+    # Rider (hooded)
+    arcade.draw_polygon_filled(
+        [(cx - s * 0.12, cy - s * 0.04),
+         (cx + s * 0.12, cy - s * 0.04),
+         (cx + s * 0.14, cy + s * 0.2),
+         (cx - s * 0.14, cy + s * 0.2)],
+        team,
+    )
+    arcade.draw_polygon_filled(
+        [(cx - s * 0.1, cy + s * 0.18),
+         (cx + s * 0.1, cy + s * 0.18),
+         (cx, cy + s * 0.36)],
+        _darken(team, 0.55),
+    )
+    # Small pennant-topped lance behind rider
+    arcade.draw_line(cx - s * 0.1, cy + s * 0.2, cx - s * 0.18, cy + s * 0.46, _WOOD, 2)
+    arcade.draw_polygon_filled(
+        [(cx - s * 0.18, cy + s * 0.46), (cx - s * 0.3, cy + s * 0.42),
+         (cx - s * 0.18, cy + s * 0.38)], team,
+    )
+    _draw_faction_emblem(cx - s * 0.22, cy + s * 0.42, s * 0.08, faction)
+
+
+def _draw_ballista(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                   faction: str) -> None:
+    """Ballista: wheeled wooden siege weapon with a horizontal bow and loaded bolt."""
+    # Wheeled carriage base
+    arcade.draw_lbwh_rectangle_filled(cx - s * 0.32, cy - s * 0.3, s * 0.64, s * 0.14, _WOOD)
+    arcade.draw_lbwh_rectangle_outline(cx - s * 0.32, cy - s * 0.3, s * 0.64, s * 0.14,
+                                        _darken(_WOOD, 0.5), 1)
+    # Wheels
+    arcade.draw_circle_filled(cx - s * 0.22, cy - s * 0.34, s * 0.08, _darken(_WOOD, 0.6))
+    arcade.draw_circle_outline(cx - s * 0.22, cy - s * 0.34, s * 0.08, _DARK_STEEL, 1)
+    arcade.draw_circle_filled(cx + s * 0.22, cy - s * 0.34, s * 0.08, _darken(_WOOD, 0.6))
+    arcade.draw_circle_outline(cx + s * 0.22, cy - s * 0.34, s * 0.08, _DARK_STEEL, 1)
+    # Frame posts
+    arcade.draw_lbwh_rectangle_filled(cx - s * 0.04, cy - s * 0.16, s * 0.08, s * 0.3, _WOOD)
+    # Horizontal bow arms
+    arcade.draw_line(cx - s * 0.3, cy + s * 0.04, cx - s * 0.04, cy + s * 0.16, _DARK_STEEL, 3)
+    arcade.draw_line(cx + s * 0.04, cy + s * 0.16, cx + s * 0.3, cy + s * 0.04, _DARK_STEEL, 3)
+    # Bowstring
+    arcade.draw_line(cx - s * 0.3, cy + s * 0.04, cx + s * 0.3, cy + s * 0.04, _STEEL, 1)
+    # Bolt loaded
+    arcade.draw_line(cx, cy + s * 0.04, cx, cy + s * 0.38, _WOOD, 3)
+    arcade.draw_polygon_filled(
+        [(cx, cy + s * 0.38), (cx - 3, cy + s * 0.32), (cx + 3, cy + s * 0.32)], _STEEL,
+    )
+    # Team banner on the frame
+    arcade.draw_lbwh_rectangle_filled(cx - s * 0.03, cy - s * 0.02, s * 0.06, s * 0.14, team)
+    _draw_faction_emblem(cx, cy + s * 0.04, s * 0.08, faction)
+
+
+def _draw_griffon(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                  wing_scale: float, faction: str) -> None:
+    """Griffon: feathered wings + lion-like body + eagle head."""
+    # Wings (feathered — lighter than wyvern)
+    wing_color = _lighten(team, 0.2)
+    edge = _darken(team, 0.5)
+    left_wing = [
+        (cx - s * 0.05, cy + s * 0.06 * wing_scale),
+        (cx - s * 0.34, cy + s * 0.26 * wing_scale),
+        (cx - s * 0.42, cy + s * 0.12 * wing_scale),
+        (cx - s * 0.38, cy - s * 0.02),
+        (cx - s * 0.18, cy + s * 0.02),
+    ]
+    right_wing = [
+        (cx + s * 0.05, cy + s * 0.06 * wing_scale),
+        (cx + s * 0.34, cy + s * 0.26 * wing_scale),
+        (cx + s * 0.42, cy + s * 0.12 * wing_scale),
+        (cx + s * 0.38, cy - s * 0.02),
+        (cx + s * 0.18, cy + s * 0.02),
+    ]
+    arcade.draw_polygon_filled(left_wing, wing_color)
+    arcade.draw_polygon_outline(left_wing, edge, 1)
+    arcade.draw_polygon_filled(right_wing, wing_color)
+    arcade.draw_polygon_outline(right_wing, edge, 1)
+    # Feather lines
+    for base, tip in ((left_wing[0], left_wing[1]), (right_wing[0], right_wing[1])):
+        arcade.draw_line(base[0], base[1], tip[0], tip[1], _lighten(team, 0.4), 1)
+    # Body (tawny)
+    body_color = (210, 180, 130)
+    arcade.draw_ellipse_filled(cx, cy - s * 0.06, s * 0.13, s * 0.24, body_color)
+    arcade.draw_ellipse_outline(cx, cy - s * 0.06, s * 0.13, s * 0.24, _DARK_STEEL, 1)
+    # Eagle head with beak
+    head_y = cy + s * 0.22
+    arcade.draw_circle_filled(cx, head_y, s * 0.1, _lighten(body_color, 0.2))
+    arcade.draw_circle_outline(cx, head_y, s * 0.1, _DARK_STEEL, 1)
+    arcade.draw_polygon_filled(
+        [(cx + s * 0.04, head_y), (cx + s * 0.14, head_y - s * 0.02),
+         (cx + s * 0.04, head_y - s * 0.04)], (230, 180, 60),
+    )
+    # Eye
+    arcade.draw_circle_filled(cx - s * 0.02, head_y + s * 0.02, 1.3, (40, 40, 40))
+    # Tail tuft
+    arcade.draw_line(cx, cy - s * 0.3, cx + s * 0.08, cy - s * 0.42, body_color, 3)
+    # Small team-tinted collar
+    arcade.draw_lbwh_rectangle_filled(cx - s * 0.08, cy + s * 0.08, s * 0.16, 3, team)
+    _draw_faction_emblem(cx, cy - s * 0.12, s * 0.1, faction)
+
+
+def _draw_warship(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                  faction: str) -> None:
+    """Warship: bigger boat with a cannon-bearing deck and two tall masts."""
+    # Water shimmer
+    arcade.draw_line(cx - s * 0.4, cy - s * 0.36, cx + s * 0.4, cy - s * 0.36, _ICE, 1)
+    # Hull (wider than longship)
+    hull = [
+        (cx - s * 0.44, cy - s * 0.18),
+        (cx - s * 0.32, cy - s * 0.32),
+        (cx + s * 0.32, cy - s * 0.32),
+        (cx + s * 0.46, cy - s * 0.18),
+        (cx + s * 0.42, cy - s * 0.08),
+        (cx - s * 0.4, cy - s * 0.08),
+    ]
+    arcade.draw_polygon_filled(hull, _darken(_WOOD, 0.85))
+    arcade.draw_polygon_outline(hull, _darken(_WOOD, 0.5), 2)
+    # Cannon ports (dark square dots along the side)
+    for dx in (-s * 0.22, -s * 0.08, s * 0.06, s * 0.2):
+        arcade.draw_lbwh_rectangle_filled(cx + dx - 2, cy - s * 0.22, 4, 4, _SHADOW)
+    # Two masts
+    for mast_x in (cx - s * 0.14, cx + s * 0.14):
+        arcade.draw_line(mast_x, cy - s * 0.08, mast_x, cy + s * 0.42, _darken(_WOOD, 0.3), 2)
+    # Sails
+    for mast_x in (cx - s * 0.14, cx + s * 0.14):
+        sail_left = mast_x - s * 0.12
+        sail_right = mast_x + s * 0.12
+        sail_top = cy + s * 0.4
+        sail_bot = cy + s * 0.04
+        arcade.draw_polygon_filled(
+            [(sail_left, sail_bot), (sail_right, sail_bot),
+             (sail_right, sail_top), (sail_left, sail_top)],
+            _lighten(team, 0.25),
+        )
+        arcade.draw_polygon_outline(
+            [(sail_left, sail_bot), (sail_right, sail_bot),
+             (sail_right, sail_top), (sail_left, sail_top)],
+            _darken(team, 0.6), 1,
+        )
+    # Faction emblem centered between the sails
+    _draw_faction_emblem(cx, cy + s * 0.22, s * 0.14, faction)
+
+
 def _draw_generic_unit(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> None:
     arcade.draw_circle_filled(cx, cy, s * 0.35, team)
     arcade.draw_circle_outline(cx, cy, s * 0.35, _DARK_STEEL, 2)
@@ -728,12 +990,27 @@ def _draw_generic_unit(cx: float, cy: float, s: float, team: tuple[int, int, int
 # Small helpers
 # -----------------------------------------------------------------------------
 
-def _draw_faction_emblem(cx: float, cy: float, size: float, faction: str) -> None:
-    """Emberdyne: orange flame. Frostmoor: blue snowflake. Unknown: gold spot."""
-    if faction == "Frostmoor":
-        _draw_snowflake(cx, cy, size, _ICE)
-    elif faction == "Emberdyne":
+def _draw_faction_emblem(cx: float, cy: float, size: float, faction_key: str) -> None:
+    """Dispatch to the right emblem drawer based on the faction's `emblem` field."""
+    f = get_faction(faction_key)
+    emblem = f.emblem
+    color = f.accent
+    if emblem == "flame":
         _draw_flame(cx, cy, size, _FLAME)
+    elif emblem == "snowflake":
+        _draw_snowflake(cx, cy, size, _ICE)
+    elif emblem == "leaf":
+        _draw_leaf(cx, cy, size, color)
+    elif emblem == "lightning":
+        _draw_lightning(cx, cy, size, color)
+    elif emblem == "wave":
+        _draw_wave(cx, cy, size, color)
+    elif emblem == "sun":
+        _draw_sun(cx, cy, size, color)
+    elif emblem == "moon":
+        _draw_moon(cx, cy, size, color)
+    elif emblem == "gear":
+        _draw_gear(cx, cy, size, color)
     else:
         arcade.draw_circle_filled(cx, cy, max(2, size * 0.35), _GOLD)
 
@@ -765,6 +1042,81 @@ def _draw_snowflake(cx: float, cy: float, size: float,
         dy = math.sin(rad) * r
         arcade.draw_line(cx - dx, cy - dy, cx + dx, cy + dy, color, 2)
     arcade.draw_circle_filled(cx, cy, max(1.5, size * 0.12), _lighten(color, 0.4))
+
+
+def _draw_leaf(cx: float, cy: float, size: float,
+               color: tuple[int, int, int]) -> None:
+    """Pointed-oval leaf with a central vein."""
+    arcade.draw_ellipse_filled(cx, cy, size * 0.32, size * 0.55, color)
+    arcade.draw_ellipse_outline(cx, cy, size * 0.32, size * 0.55, _darken(color, 0.5), 1)
+    arcade.draw_line(cx, cy - size * 0.45, cx, cy + size * 0.45, _darken(color, 0.5), 1)
+
+
+def _draw_lightning(cx: float, cy: float, size: float,
+                     color: tuple[int, int, int]) -> None:
+    """Zigzag lightning bolt, filled polygon."""
+    pts = [
+        (cx - size * 0.15, cy + size * 0.45),
+        (cx + size * 0.10, cy + size * 0.10),
+        (cx - size * 0.05, cy + size * 0.05),
+        (cx + size * 0.18, cy - size * 0.45),
+        (cx - size * 0.02, cy - size * 0.10),
+        (cx + size * 0.12, cy - size * 0.05),
+    ]
+    arcade.draw_polygon_filled(pts, color)
+    arcade.draw_polygon_outline(pts, _darken(color, 0.45), 1)
+
+
+def _draw_wave(cx: float, cy: float, size: float,
+                color: tuple[int, int, int]) -> None:
+    """Three stacked curved wavelets."""
+    for i, dy in enumerate((-size * 0.2, 0.0, size * 0.2)):
+        prev = (cx - size * 0.4, cy + dy)
+        for k in range(1, 9):
+            x = cx - size * 0.4 + k * (size * 0.1)
+            y = cy + dy + math.sin(k * 0.9 + i) * size * 0.06
+            arcade.draw_line(prev[0], prev[1], x, y, color, 2)
+            prev = (x, y)
+
+
+def _draw_sun(cx: float, cy: float, size: float,
+               color: tuple[int, int, int]) -> None:
+    """Central disk with 8 rays."""
+    r = size * 0.22
+    arcade.draw_circle_filled(cx, cy, r, color)
+    arcade.draw_circle_outline(cx, cy, r, _darken(color, 0.5), 1)
+    for angle_deg in (0, 45, 90, 135, 180, 225, 270, 315):
+        rad = math.radians(angle_deg)
+        ix = math.cos(rad) * r * 1.3
+        iy = math.sin(rad) * r * 1.3
+        ox = math.cos(rad) * size * 0.45
+        oy = math.sin(rad) * size * 0.45
+        arcade.draw_line(cx + ix, cy + iy, cx + ox, cy + oy, color, 2)
+
+
+def _draw_moon(cx: float, cy: float, size: float,
+                color: tuple[int, int, int]) -> None:
+    """Crescent: big disk minus a smaller overlapping disk in the background color."""
+    r = size * 0.4
+    arcade.draw_circle_filled(cx, cy, r, color)
+    # Cut out a crescent with a disk in the panel/background color.
+    arcade.draw_circle_filled(cx + size * 0.15, cy + size * 0.05, r * 0.85, COLORS["ui_panel"])
+
+
+def _draw_gear(cx: float, cy: float, size: float,
+                color: tuple[int, int, int]) -> None:
+    """Gear: filled ring with 6 rectangular teeth."""
+    outer = size * 0.42
+    inner = size * 0.28
+    arcade.draw_circle_filled(cx, cy, outer, color)
+    # Background-colored core (hollow look)
+    arcade.draw_circle_filled(cx, cy, inner * 0.55, COLORS["ui_panel"])
+    for angle_deg in range(0, 360, 60):
+        rad = math.radians(angle_deg)
+        tx = cx + math.cos(rad) * outer
+        ty = cy + math.sin(rad) * outer
+        arcade.draw_circle_filled(tx, ty, size * 0.08, color)
+    arcade.draw_circle_outline(cx, cy, outer, _darken(color, 0.5), 1)
 
 
 def _draw_sword(cx: float, cy: float, length: float, angle_deg: float,

@@ -18,10 +18,11 @@ def _state(ai_starts_at, enemy_at, extras=()) -> GameState:
         for row in range(3):
             m.tiles[(col, row)] = Tile(terrain=PLAINS)
 
-    p1 = Player(id=1, name="P1", faction="R", gold=0)
-    p1.init_visibility(8, 3)
-    p2 = Player(id=2, name="AI", faction="B", gold=0, is_ai=True)
-    p2.init_visibility(8, 3)
+    from src.core.types import VisState
+    p1 = Player(id=1, name="P1", faction="emberdyne", gold=0)
+    p1.visibility = [[VisState.VISIBLE for _ in range(3)] for _ in range(8)]
+    p2 = Player(id=2, name="AI", faction="frostmoor", gold=0, is_ai=True)
+    p2.visibility = [[VisState.VISIBLE for _ in range(3)] for _ in range(8)]
 
     enemy = Infantry(id=1, owner_id=1, coord=enemy_at, hp=Infantry.max_hp)
     ai_unit = Infantry(id=2, owner_id=2, coord=ai_starts_at, hp=Infantry.max_hp)

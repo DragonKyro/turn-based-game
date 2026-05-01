@@ -24,8 +24,8 @@
     "~": "sea"
   },
   "players": [
-    { "id": 1, "name": "Ember",  "faction": "Emberdyne",  "hero": "emberlord",  "start_gold": 1000, "is_ai": false },
-    { "id": 2, "name": "Frost",  "faction": "Frostmoor",  "hero": "frostqueen", "start_gold": 1000, "is_ai": true }
+    { "id": 1, "name": "Ember",  "faction": "emberdyne",  "hero": "emberlord",  "start_gold": 1000, "is_ai": false },
+    { "id": 2, "name": "Frost",  "faction": "frostmoor",  "hero": "frostqueen", "start_gold": 1000, "is_ai": true }
   ],
   "buildings": [
     { "kind": "stronghold", "coord": [1, 1],   "owner": 1 },

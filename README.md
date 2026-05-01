@@ -4,7 +4,7 @@ A turn-based tactics game in the spirit of **Advance Wars** and **Wargroove**. T
 
 Written in Python 3.11 on [`arcade`](https://api.arcade.academy/) 3.3.
 
-> **Status.** v1 single-player-complete. Mouse-clickable menu, per-tile terrain texture (trees, rocks, waves, cobblestone, grass tufts) with deterministic variation, vector sprites for every unit + building, idle animations (bob, wing-flap on wyverns, flicker on Emberlord's flame crown, ice-particle swirl on the Frostqueen), hover a tile to see its terrain stats, click a production building and hover a row to see full unit stats before committing. Fog is rendered from the **human player's** perspective — during the AI's turn, enemy units only appear where your units can see them. Capture an enemy HQ to win.
+> **Status.** v1 single-player-complete, ten unit kinds (Infantry, Archer, Spearman, Knight, Scout, Ballista, Wyvern, Griffon, Longship, Warship) plus two hero lines, eight factions with distinct palettes and banner motifs (flame, snowflake, leaf, lightning, wave, sun, moon, gear), full vector sprites + per-tile terrain texture + idle animation. One-click move+attack: with a unit selected, clicking an enemy auto-routes you to the best attack position and resolves combat. Fog restricts movement: you can't path into HIDDEN tiles. Production buildings open a mouse-driven menu; picking a unit shows pulsing gold ghosts on the valid adjacent spawn tiles so you choose which side it deploys from. Fight-scene cinematic with lunge animation, weapon slashes, particle bursts on impact, animated HP bars, and screen shake.
 
 ---
 

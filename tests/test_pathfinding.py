@@ -4,6 +4,7 @@ from __future__ import annotations
 from src.core.game_state import GameState
 from src.core.pathfinding import attackable_from, reachable
 from src.core.player import Player
+from src.core.types import VisState
 from src.entities.units.infantry import Infantry
 from src.entities.units.knight import Knight
 from src.entities.units.longship import Longship
@@ -17,15 +18,16 @@ def _blank_state(terrain_grid) -> GameState:
     height = len(terrain_grid)
     width = len(terrain_grid[0])
     m = Map(width=width, height=height)
-    # terrain_grid is top-row-first like level files; flip to bottom-left origin.
     for visual_row, row in enumerate(terrain_grid):
         grid_row = height - 1 - visual_row
         for col, t in enumerate(row):
             m.tiles[(col, grid_row)] = Tile(terrain=t)
-    p1 = Player(id=1, name="P1", faction="R", gold=0)
-    p1.init_visibility(width, height)
-    p2 = Player(id=2, name="P2", faction="B", gold=0)
-    p2.init_visibility(width, height)
+    # Mark the whole map VISIBLE for both players so these tests exercise pathfinding,
+    # not fog-of-war restrictions (which have their own test file).
+    p1 = Player(id=1, name="P1", faction="emberdyne", gold=0)
+    p1.visibility = [[VisState.VISIBLE for _ in range(height)] for _ in range(width)]
+    p2 = Player(id=2, name="P2", faction="frostmoor", gold=0)
+    p2.visibility = [[VisState.VISIBLE for _ in range(height)] for _ in range(width)]
     return GameState(map=m, players={1: p1, 2: p2}, units={}, buildings={}, current_player_id=1)
 
 
@@ -130,6 +132,20 @@ def test_enemy_blocks_allied_passes_through():
     assert (3, 1) in r
     # (4,1) is enemy — blocked, cannot reach and cannot stop.
     assert (4, 1) not in r
+
+
+def test_reachable_excludes_hidden_tiles():
+    state = _blank_state([[PLAINS] * 5] * 5)
+    u = Infantry(id=1, owner_id=1, coord=(2, 2), hp=Infantry.max_hp)
+    state.units[1] = u
+    state.map.tiles[(2, 2)].unit_id = 1
+    # Blot out two specific tiles as HIDDEN on player 1's fog.
+    state.players[1].visibility[4][2] = VisState.HIDDEN
+    state.players[1].visibility[2][4] = VisState.HIDDEN
+    r = reachable(state, u)
+    assert (4, 2) not in r  # hidden -> can't path there
+    assert (2, 4) not in r
+    assert (3, 2) in r       # still reachable (visible)
 
 
 def test_attackable_from_ranged_unit():

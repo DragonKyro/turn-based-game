@@ -22,6 +22,7 @@ class AttackAction:
 class BuildAction:
     building_id: int
     unit_kind: str
+    spawn_coord: Coord | None = None   # if set, must be an adjacent valid spawn tile
 
 
 @dataclass(frozen=True)

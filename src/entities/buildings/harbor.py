@@ -11,4 +11,4 @@ class Harbor(Building):
     kind: ClassVar[str] = "harbor"
     display_letter: ClassVar[str] = "P"  # "P" for port — 'H' is the stronghold
     produces_class: ClassVar[UnitClass | None] = UnitClass.WATER
-    produces_kinds: ClassVar[tuple[str, ...]] = ("longship",)
+    produces_kinds: ClassVar[tuple[str, ...]] = ("longship", "warship")

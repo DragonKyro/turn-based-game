@@ -47,6 +47,7 @@ grep -rn "import arcade" src/core src/entities src/world
 | Per-tile terrain decorations (deterministic variation) | [src/engine/terrain_sprites.py](src/engine/terrain_sprites.py) |
 | Hover terrain-info panel | [src/ui/terrain_info.py](src/ui/terrain_info.py) |
 | Dumb AI for is_ai players | [src/core/ai.py](src/core/ai.py) |
+| Faction registry (palette + emblem) | [src/core/factions.py](src/core/factions.py) |
 | Save / load (JSON) | [src/core/persistence.py](src/core/persistence.py) — `saves/quicksave.json` via F5/F9 |
 | User options (persisted) | [src/core/options.py](src/core/options.py) — `saves/options.json` |
 | Fight-scene overlay | [src/ui/fight_scene.py](src/ui/fight_scene.py) |

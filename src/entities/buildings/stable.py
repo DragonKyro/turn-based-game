@@ -11,4 +11,4 @@ class Stable(Building):
     kind: ClassVar[str] = "stable"
     display_letter: ClassVar[str] = "S"
     produces_class: ClassVar[UnitClass | None] = UnitClass.VEHICLE
-    produces_kinds: ClassVar[tuple[str, ...]] = ("knight",)
+    produces_kinds: ClassVar[tuple[str, ...]] = ("knight", "scout", "ballista")

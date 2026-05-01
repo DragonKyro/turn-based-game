@@ -14,7 +14,7 @@ from src.core.actions import ActivateUltimateAction, BuildAction, EndTurnAction
 from src.core.ai import take_turn as ai_take_turn
 from src.core.coord import grid_to_pixel, pixel_to_grid
 from src.core.fog import recompute_visibility
-from src.core.game_rules import IllegalAction, apply_action
+from src.core.game_rules import IllegalAction, apply_action, valid_spawn_tiles
 from src.core.pathfinding import attackable_from, reachable
 from src.core.options import Options
 from src.core.persistence import SaveLoadError, load_from_path, save_to_path
@@ -45,6 +45,8 @@ class GameView(arcade.View):
         self.reachable_tiles: dict[tuple[int, int], int] = {}
         self.attack_tiles: set[tuple[int, int]] = set()
         self.build_menu: BuildMenu | None = None
+        self.pending_build: tuple[int, str, list[tuple[int, int]]] | None = None
+        """None = no pending spawn; else (building_id, unit_kind, valid_spawn_tiles)."""
         self.banner: str | None = None
         self.hover_coord: tuple[int, int] | None = None
         self.view_player_id: int = 1   # real value set in on_show_view
@@ -118,6 +120,11 @@ class GameView(arcade.View):
             renderer.draw_move_range(self.reachable_tiles)
         if self.attack_tiles:
             renderer.draw_attack_range(self.attack_tiles)
+        if self.pending_build is not None:
+            import math
+            _bid, _k, tiles = self.pending_build
+            pulse = 0.5 + 0.5 * math.sin(self._anim_time * 4.0)
+            renderer.draw_spawn_ghosts(tiles, pulse)
         # Hover ring (below selection so selection wins when they coincide).
         if self.hover_coord is not None and self.state.map.in_bounds(self.hover_coord):
             if vis is None or vis[self.hover_coord[0]][self.hover_coord[1]] != VisState.HIDDEN:
@@ -232,6 +239,16 @@ class GameView(arcade.View):
         if not self.state.map.in_bounds(coord):
             return
 
+        # Pending build: clicking a ghost spawn tile commits the build; any other click cancels.
+        if self.pending_build is not None:
+            building_id, unit_kind, tiles = self.pending_build
+            if coord in tiles:
+                self._commit_build(building_id, unit_kind, coord)
+            else:
+                self.pending_build = None
+                self.banner = "Build cancelled"
+            return
+
         # If the human clicks their own production building with no selection AND no unit
         # is on that tile, open the build menu. A unit standing on the building always wins
         # the click so it can be selected — otherwise a freshly-built or repositioned unit
@@ -262,17 +279,52 @@ class GameView(arcade.View):
         self._update_selection(click.new_selection)
 
     def _try_build(self, unit_kind: str) -> None:
-        """Attempt to construct a unit from the currently-open build menu."""
+        """Stage a pending build — show spawn-tile ghosts; player clicks one to confirm."""
+        from src.entities.units import UNIT_REGISTRY
         assert self.state is not None and self.build_menu is not None
+        unit_cls = UNIT_REGISTRY.get(unit_kind)
+        building = self.build_menu.building
+        if unit_cls is None:
+            self.banner = f"Unknown unit kind {unit_kind!r}"
+            self.build_menu = None
+            return
+        # Pre-check gold + not-yet-produced so we don't open the ghosts if we can't finish.
+        gold = self.state.players[building.owner_id].gold
+        if gold < unit_cls.cost:
+            self.banner = f"Not enough gold for {unit_kind} (need {unit_cls.cost})"
+            self.build_menu = None
+            return
+        if building.has_produced:
+            self.banner = f"{type(building).__name__} already produced this turn"
+            self.build_menu = None
+            return
+        tiles = valid_spawn_tiles(self.state, building.coord, unit_cls.unit_class)
+        if not tiles:
+            self.banner = f"No open adjacent tile for {unit_kind} to deploy"
+            self.build_menu = None
+            return
+        # If there's only one option, commit immediately — no need to ask which side.
+        if len(tiles) == 1:
+            self.build_menu = None
+            self._commit_build(building.id, unit_kind, tiles[0])
+            return
+        # Otherwise stage the pending build so the renderer shows ghost markers.
+        self.pending_build = (building.id, unit_kind, tiles)
+        self.build_menu = None
+
+    def _commit_build(self, building_id: int, unit_kind: str,
+                       spawn_coord: tuple[int, int]) -> None:
+        assert self.state is not None
         try:
             events = apply_action(
                 self.state,
-                BuildAction(building_id=self.build_menu.building.id, unit_kind=unit_kind),
+                BuildAction(building_id=building_id, unit_kind=unit_kind,
+                             spawn_coord=spawn_coord),
             )
             self._consume_events(events)
         except IllegalAction as e:
             self.banner = f"Illegal: {e}"
-        self.build_menu = None
+        self.pending_build = None
 
     def on_key_press(self, symbol: int, _modifiers: int) -> None:
         if self.state is None:
@@ -301,6 +353,10 @@ class GameView(arcade.View):
             return
 
         if symbol == arcade.key.ESCAPE:
+            if self.pending_build is not None:
+                self.pending_build = None
+                self.banner = "Build cancelled"
+                return
             self._return_to_menu()
         elif symbol == arcade.key.F5:
             self._quicksave()
@@ -437,7 +493,11 @@ class GameView(arcade.View):
         self.banner = "   ".join(parts) if parts else None
 
     def _trigger_fight_scene(self, result) -> None:
-        """Create a one-shot fight-scene overlay from a CombatResult."""
+        """Create a one-shot fight-scene overlay from a CombatResult.
+
+        The state has already been mutated by the time this fires, so we read the
+        POST-combat HP directly and reconstruct the pre-combat HP by adding back the
+        damage that each side took. This lets the scene animate the bar depleting."""
         assert self.state is not None
         a_id = result.attack.attacker_id
         d_id = result.attack.defender_id
@@ -445,13 +505,20 @@ class GameView(arcade.View):
         defender = self.state.units.get(d_id)
         if attacker is None or defender is None:
             return
+        counter_final = result.counter.final if result.counter else 0
         self._fight_scene = FightScene(
             attacker_kind=attacker.kind,
             attacker_faction=self.state.players[attacker.owner_id].faction,
             attacker_owner=attacker.owner_id,
+            attacker_hp_before=attacker.hp + counter_final,
+            attacker_hp_after=attacker.hp,
+            attacker_hp_max=attacker.max_hp,
             defender_kind=defender.kind,
             defender_faction=self.state.players[defender.owner_id].faction,
             defender_owner=defender.owner_id,
+            defender_hp_before=defender.hp + result.attack.final,
+            defender_hp_after=defender.hp,
+            defender_hp_max=defender.max_hp,
             result=result,
             duration=self._options.fight_scene_duration,
         )

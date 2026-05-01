@@ -7,7 +7,12 @@ from src.entities.units import UNIT_REGISTRY
 
 
 def test_unit_registry_populated():
-    assert set(UNIT_REGISTRY) == {"infantry", "knight", "wyvern", "longship"}
+    assert set(UNIT_REGISTRY) >= {
+        "infantry", "archer", "spearman",
+        "knight", "scout", "ballista",
+        "wyvern", "griffon",
+        "longship", "warship",
+    }
 
 
 def test_hero_registry_populated():

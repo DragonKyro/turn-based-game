@@ -172,9 +172,19 @@ def _apply_build(state: GameState, a: BuildAction) -> list[Event]:
     if not can_afford(state, b.owner_id, cost):
         raise IllegalAction(f"Not enough gold for {a.unit_kind} (need {cost})")
 
-    # Spawn on an adjacent passable empty tile (Wargroove-style).
-    spawn_coord = _find_spawn_neighbor(state, b.coord, unit_cls.unit_class)
-    if spawn_coord is None:
+    # Spawn on an adjacent passable empty tile (Wargroove-style). The UI can
+    # request a specific neighbor via `a.spawn_coord`; we validate it's in the
+    # allowed set. Without a hint we pick the first valid neighbor.
+    spawn_candidates = valid_spawn_tiles(state, b.coord, unit_cls.unit_class)
+    if a.spawn_coord is not None:
+        if a.spawn_coord not in spawn_candidates:
+            raise IllegalAction(
+                f"Spawn tile {a.spawn_coord} is not a valid adjacent deploy tile"
+            )
+        spawn_coord = a.spawn_coord
+    elif spawn_candidates:
+        spawn_coord = spawn_candidates[0]
+    else:
         raise IllegalAction(f"No open adjacent tile for {a.unit_kind} to deploy")
 
     new_id = state.allocate_id()
@@ -190,35 +200,35 @@ def _apply_build(state: GameState, a: BuildAction) -> list[Event]:
     return [{"type": "unit_built", "unit_id": new_id, "kind": a.unit_kind, "coord": spawn_coord}]
 
 
-def _find_spawn_neighbor(state: GameState, origin, unit_class) -> tuple[int, int] | None:
-    """Return the first 4-adjacent tile that is in-bounds, passable for `unit_class`,
-    and has no living unit on it. Order (N, E, S, W) is stable so spawns are predictable.
-    Buildings on the tile are fine — we can spawn onto, say, a Mine."""
+def valid_spawn_tiles(state: GameState, origin, unit_class) -> list[tuple[int, int]]:
+    """All 4-adjacent tiles where a unit of `unit_class` could deploy from `origin`.
+
+    Order (N, E, S, W) is stable so the UI can present them in a consistent layout.
+    Diagonals are appended as a last-resort fallback used only when the cardinals are all
+    blocked (so `valid_spawn_tiles(...)[0]` stays sensible)."""
     col, row = origin
-    # Prefer cardinal order that reads cleanly: above, right, below, left.
+    cardinals: list[tuple[int, int]] = []
+    diagonals: list[tuple[int, int]] = []
     for dc, dr in ((0, 1), (1, 0), (0, -1), (-1, 0)):
         c = (col + dc, row + dr)
-        if not state.map.in_bounds(c):
-            continue
-        tile = state.map.tile(c)
-        if not tile.terrain.passable_for(unit_class):
-            continue
-        occupant = state.units.get(tile.unit_id) if tile.unit_id is not None else None
-        if occupant is not None and occupant.is_alive:
-            continue
-        return c
-    # Last resort: also check diagonals so a fully hemmed-in building can still produce.
-    for dc, dr in ((1, 1), (1, -1), (-1, -1), (-1, 1)):
-        c = (col + dc, row + dr)
-        if not state.map.in_bounds(c):
-            continue
-        tile = state.map.tile(c)
-        if not tile.terrain.passable_for(unit_class):
-            continue
-        occupant = state.units.get(tile.unit_id) if tile.unit_id is not None else None
-        if occupant is None or not occupant.is_alive:
-            return c
-    return None
+        if _valid_spawn(state, c, unit_class):
+            cardinals.append(c)
+    if not cardinals:
+        for dc, dr in ((1, 1), (1, -1), (-1, -1), (-1, 1)):
+            c = (col + dc, row + dr)
+            if _valid_spawn(state, c, unit_class):
+                diagonals.append(c)
+    return cardinals + diagonals
+
+
+def _valid_spawn(state: GameState, c, unit_class) -> bool:
+    if not state.map.in_bounds(c):
+        return False
+    tile = state.map.tile(c)
+    if not tile.terrain.passable_for(unit_class):
+        return False
+    occupant = state.units.get(tile.unit_id) if tile.unit_id is not None else None
+    return occupant is None or not occupant.is_alive
 
 
 def _apply_ultimate(state: GameState, a: ActivateUltimateAction) -> list[Event]:
