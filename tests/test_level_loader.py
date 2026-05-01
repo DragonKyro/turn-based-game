@@ -15,10 +15,10 @@ def test_sample_level_loads_cleanly():
     state = level.initial_state
     m = state.map
 
-    assert m.width == 16
+    assert m.width == 18
     assert m.height == 12
     # Every tile must be populated.
-    assert len(m.tiles) == 16 * 12
+    assert len(m.tiles) == 18 * 12
 
     # Two players, each with a hero_id wired.
     assert set(state.players.keys()) == {1, 2}

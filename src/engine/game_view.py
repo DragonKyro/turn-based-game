@@ -20,6 +20,7 @@ from src.core.options import Options
 from src.core.persistence import SaveLoadError, load_from_path, save_to_path
 from src.core.types import VisState
 from src.engine import renderer
+from src.engine.audio import Audio
 from src.engine.camera import Cameras
 from src.engine.input_controller import interpret_click
 from src.engine.moving_unit import MovingUnit
@@ -34,9 +35,12 @@ from src.world.level_loader import LevelLoadError, load_level
 
 
 class GameView(arcade.View):
-    def __init__(self, level_name: str) -> None:
+    def __init__(self, level_name: str,
+                 player_factions: dict[int, str] | None = None) -> None:
         super().__init__()
         self.level_name = level_name
+        # Optional {player_id: faction_key} overrides applied after level load.
+        self._faction_overrides: dict[int, str] = dict(player_factions or {})
         self.level = None
         self.state = None
         self.cameras = Cameras()
@@ -73,9 +77,15 @@ class GameView(arcade.View):
 
     def on_show_view(self) -> None:
         self.window.background_color = COLORS["background"]
+        if self._options.music_enabled:
+            Audio.get().play_music("battle")
         try:
             self.level = load_level(self.level_name)
             self.state = self.level.initial_state
+            # Apply faction-select overrides if any.
+            for pid, key in self._faction_overrides.items():
+                if pid in self.state.players:
+                    self.state.players[pid].faction = key
             self.cameras.center_on(self.state.map.width, self.state.map.height)
             # View always belongs to the first non-AI player. Even during the AI's
             # turn we render their perspective, so enemy movement outside the
@@ -135,11 +145,22 @@ class GameView(arcade.View):
         skip_unit_id = self._moving_unit.unit_id if self._moving_unit else None
         renderer.draw_units(self.state, vis, view_player_id, self._anim_time,
                             skip_unit_id=skip_unit_id)
-        # If a unit is mid-animation, draw it at the interpolated pixel position.
+        # If a unit is mid-animation, draw it at the interpolated pixel position —
+        # but only if that position is currently VISIBLE to the human. Enemy units
+        # moving through fog must stay hidden; they appear as they cross into
+        # our sight and disappear when they cross back out.
         if self._moving_unit is not None:
-            mx, my = self._moving_unit.current_pixel()
-            renderer.draw_unit_at(self.state, self._moving_unit.unit_id, mx, my,
-                                  self._anim_time)
+            moving = self.state.units.get(self._moving_unit.unit_id)
+            if moving is not None:
+                cur_tile = self._moving_unit.current_tile()
+                tile_vis = (vis[cur_tile[0]][cur_tile[1]]
+                            if self.state.map.in_bounds(cur_tile) else VisState.HIDDEN)
+                visible = (moving.owner_id == view_player_id
+                           or tile_vis == VisState.VISIBLE)
+                if visible:
+                    mx, my = self._moving_unit.current_pixel()
+                    renderer.draw_unit_at(self.state, self._moving_unit.unit_id,
+                                          mx, my, self._anim_time)
         if self.selected_unit_id is not None:
             u = self.state.units.get(self.selected_unit_id)
             if u is not None and u.is_alive:
@@ -507,10 +528,13 @@ class GameView(arcade.View):
 
     def _handle_event(self, e: dict) -> None:
         t = e.get("type")
+        audio = Audio.get() if self._options.sfx_enabled else None
         if t == "move":
             path = e.get("path") or []
             if len(path) > 1:
                 self._moving_unit = MovingUnit(unit_id=e["unit_id"], path=path)
+                if audio:
+                    audio.play_sfx("move")
             self._set_banner(f"Move to {e['to']}")
         elif t == "attack":
             r = e["result"]
@@ -519,6 +543,8 @@ class GameView(arcade.View):
                 + (f", counter {r.counter.final}" if r.counter else "")
             )
             self._set_banner(dmg_note)
+            if audio:
+                audio.play_sfx("attack")
             if self._options.show_fight_scene:
                 self._trigger_fight_scene(r)
         elif t == "unit_destroyed":
@@ -529,6 +555,8 @@ class GameView(arcade.View):
             self._set_banner(f"Captured building {e['building_id']}")
         elif t == "unit_built":
             self._set_banner(f"Built {e['kind']} at {e['coord']}")
+            if audio:
+                audio.play_sfx("build")
         elif t == "ultimate":
             self._set_banner(f"Hero ultimate fired ({len(e['effects'])} effects)")
         elif t == "end_turn":
@@ -536,8 +564,12 @@ class GameView(arcade.View):
                 f"Turn {e['turn_number']}: P{e['current_player']} "
                 f"(+{e['income_awarded']}g)"
             )
+            if audio:
+                audio.play_sfx("turn_end")
         elif t == "victory":
             self._set_banner(f"Victory: P{e['winner_id']} ({e['reason']})")
+            if audio:
+                audio.play_sfx("victory")
 
     def _set_banner(self, text: str) -> None:
         self.banner = text

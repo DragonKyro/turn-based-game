@@ -13,7 +13,9 @@ OPTIONS_PATH = PROJECT_ROOT / "saves" / "options.json"
 @dataclass
 class Options:
     show_fight_scene: bool = True
-    fight_scene_duration: float = 2.2  # seconds
+    fight_scene_duration: float = 2.2
+    music_enabled: bool = True
+    sfx_enabled: bool = True  # seconds
 
     @classmethod
     def load(cls) -> "Options":

@@ -1,7 +1,4 @@
-"""Options screen reachable from the main menu.
-
-Toggles settings via clickable rows and persists them via `Options.save()`.
-"""
+"""Options screen reachable from the main menu."""
 from __future__ import annotations
 
 import arcade
@@ -24,22 +21,38 @@ class OptionsView(arcade.View):
 
         btn_w, btn_h = 360, 50
         btn_x = WINDOW_WIDTH // 2 - btn_w // 2
-        y = WINDOW_HEIGHT // 2 + 40
+        y0 = WINDOW_HEIGHT // 2 + 110
 
-        self._fight_btn = Button(
-            label=self._fight_label(),
-            left=btn_x, bottom=y, width=btn_w, height=btn_h,
-            on_click=self._toggle_fight_scene,
+        self._buttons: list[Button] = []
+        self._fight_btn = self._make_toggle_btn(
+            btn_x, y0, btn_w, btn_h,
+            lambda: self._fmt("Fight scene", self.options.show_fight_scene),
+            self._toggle_fight_scene,
+        )
+        self._music_btn = self._make_toggle_btn(
+            btn_x, y0 - 70, btn_w, btn_h,
+            lambda: self._fmt("Music", self.options.music_enabled),
+            self._toggle_music,
+        )
+        self._sfx_btn = self._make_toggle_btn(
+            btn_x, y0 - 140, btn_w, btn_h,
+            lambda: self._fmt("Sound effects", self.options.sfx_enabled),
+            self._toggle_sfx,
         )
         self._back_btn = Button(
             label="Back to menu",
-            left=btn_x, bottom=y - 90, width=btn_w, height=btn_h,
+            left=btn_x, bottom=y0 - 230, width=btn_w, height=btn_h,
             on_click=self._back,
         )
-        self._buttons = [self._fight_btn, self._back_btn]
+        self._buttons = [self._fight_btn, self._music_btn, self._sfx_btn, self._back_btn]
 
-    def _fight_label(self) -> str:
-        return "Fight scene:  ON" if self.options.show_fight_scene else "Fight scene:  OFF"
+    def _fmt(self, label: str, enabled: bool) -> str:
+        return f"{label}:  {'ON' if enabled else 'OFF'}"
+
+    def _make_toggle_btn(self, x: float, y: float, w: float, h: float,
+                          label_fn, on_click) -> Button:
+        return Button(label=label_fn(), left=x, bottom=y, width=w, height=h,
+                       on_click=on_click)
 
     def on_show_view(self) -> None:
         self.window.background_color = COLORS["background"]
@@ -57,23 +70,57 @@ class OptionsView(arcade.View):
     def on_mouse_press(self, x: int, y: int, _button: int, _mods: int) -> None:
         for b in self._buttons:
             if b.on_click_if_inside(x, y):
+                from src.engine.audio import Audio
+                Audio.get().play_sfx("click")
                 return
 
     def on_key_press(self, symbol: int, _modifiers: int) -> None:
         if symbol == arcade.key.ESCAPE:
             self._back()
 
+    # --- toggles ---
+
+    def _rebuild_buttons(self) -> None:
+        """Rebuild the three toggle buttons so their cached labels refresh."""
+        self._fight_btn = self._make_toggle_btn(
+            self._fight_btn.left, self._fight_btn.bottom,
+            self._fight_btn.width, self._fight_btn.height,
+            lambda: self._fmt("Fight scene", self.options.show_fight_scene),
+            self._toggle_fight_scene,
+        )
+        self._music_btn = self._make_toggle_btn(
+            self._music_btn.left, self._music_btn.bottom,
+            self._music_btn.width, self._music_btn.height,
+            lambda: self._fmt("Music", self.options.music_enabled),
+            self._toggle_music,
+        )
+        self._sfx_btn = self._make_toggle_btn(
+            self._sfx_btn.left, self._sfx_btn.bottom,
+            self._sfx_btn.width, self._sfx_btn.height,
+            lambda: self._fmt("Sound effects", self.options.sfx_enabled),
+            self._toggle_sfx,
+        )
+        self._buttons = [self._fight_btn, self._music_btn, self._sfx_btn, self._back_btn]
+
     def _toggle_fight_scene(self) -> None:
         self.options.show_fight_scene = not self.options.show_fight_scene
         self.options.save()
-        # Rebuild the button with the new label text.
-        self._fight_btn = Button(
-            label=self._fight_label(),
-            left=self._fight_btn.left, bottom=self._fight_btn.bottom,
-            width=self._fight_btn.width, height=self._fight_btn.height,
-            on_click=self._toggle_fight_scene,
-        )
-        self._buttons[0] = self._fight_btn
+        self._rebuild_buttons()
+
+    def _toggle_music(self) -> None:
+        self.options.music_enabled = not self.options.music_enabled
+        self.options.save()
+        from src.engine.audio import Audio
+        if self.options.music_enabled:
+            Audio.get().play_music("title")
+        else:
+            Audio.get().stop_music()
+        self._rebuild_buttons()
+
+    def _toggle_sfx(self) -> None:
+        self.options.sfx_enabled = not self.options.sfx_enabled
+        self.options.save()
+        self._rebuild_buttons()
 
     def _back(self) -> None:
         from src.engine.menu_view import MenuView

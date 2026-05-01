@@ -43,3 +43,14 @@ class MovingUnit:
         ax, ay = grid_to_pixel(a, TILE_SIZE)
         bx, by = grid_to_pixel(b, TILE_SIZE)
         return (ax + (bx - ax) * local, ay + (by - ay) * local)
+
+    def current_tile(self) -> Coord:
+        """Nearest path tile to the current interpolated position. Used to check fog visibility."""
+        segments = max(1, len(self.path) - 1)
+        t = max(0.0, min(1.0, self.elapsed / max(self.duration, 1e-6)))
+        pos = t * segments
+        idx = int(pos)
+        if idx >= segments:
+            return self.path[-1]
+        local = pos - idx
+        return self.path[idx + 1] if local > 0.5 else self.path[idx]

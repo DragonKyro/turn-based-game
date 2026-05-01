@@ -52,6 +52,14 @@ class MenuView(arcade.View):
 
     def on_show_view(self) -> None:
         self.window.background_color = COLORS["background"]
+        from src.engine.audio import Audio
+        from src.core.options import Options
+        opts = Options.load()
+        audio = Audio.get()
+        if opts.music_enabled:
+            audio.play_music("title")
+        else:
+            audio.stop_music()
 
     def on_draw(self) -> None:
         self.clear()
@@ -72,6 +80,8 @@ class MenuView(arcade.View):
     def on_mouse_press(self, x: int, y: int, _button: int, _mods: int) -> None:
         for b in self._buttons:
             if b.on_click_if_inside(x, y):
+                from src.engine.audio import Audio
+                Audio.get().play_sfx("click")
                 return
 
     def on_key_press(self, symbol: int, _modifiers: int) -> None:
@@ -83,8 +93,8 @@ class MenuView(arcade.View):
     # --- actions ---
 
     def _start_game(self) -> None:
-        from src.engine.game_view import GameView
-        self.window.show_view(GameView(DEFAULT_LEVEL))
+        from src.engine.faction_select_view import FactionSelectView
+        self.window.show_view(FactionSelectView(DEFAULT_LEVEL))
 
     def _open_options(self) -> None:
         from src.engine.options_view import OptionsView

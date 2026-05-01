@@ -53,31 +53,32 @@ def _apply_fog(color: tuple[int, int, int], fog_factor: float) -> tuple[int, int
 
 
 def draw_move_range(tiles: dict[Coord, int]) -> None:
+    """Solid-color outlines (no alpha fill) — avoids the diagonal-seam artifact
+    that alpha-blended rectangles produce on some GPU rigs."""
     for coord in tiles:
         col, row = coord
-        arcade.draw_lbwh_rectangle_filled(
-            col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE, COLORS["move_range"]
+        arcade.draw_lbwh_rectangle_outline(
+            col * TILE_SIZE + 2, row * TILE_SIZE + 2,
+            TILE_SIZE - 4, TILE_SIZE - 4,
+            (90, 170, 255), 2,
         )
 
 
 def draw_attack_range(tiles: set[Coord]) -> None:
     for coord in tiles:
         col, row = coord
-        arcade.draw_lbwh_rectangle_filled(
-            col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE, COLORS["attack_range"]
+        arcade.draw_lbwh_rectangle_outline(
+            col * TILE_SIZE + 2, row * TILE_SIZE + 2,
+            TILE_SIZE - 4, TILE_SIZE - 4,
+            (230, 80, 80), 2,
         )
 
 
 def draw_selection(coord: Coord) -> None:
-    """Thick gold ring + subtle fill tint on the selected tile."""
+    """Solid gold double-ring on the selected tile — no alpha fill."""
     col, row = coord
     left = col * TILE_SIZE
     bottom = row * TILE_SIZE
-    # Subtle fill (semi-transparent gold)
-    arcade.draw_lbwh_rectangle_filled(
-        left, bottom, TILE_SIZE, TILE_SIZE, (255, 215, 60, 55)
-    )
-    # Thick outer ring + thin inner ring for readability on any terrain
     arcade.draw_lbwh_rectangle_outline(
         left, bottom, TILE_SIZE, TILE_SIZE, COLORS["selection"], 4
     )
@@ -87,27 +88,23 @@ def draw_selection(coord: Coord) -> None:
 
 
 def draw_hover(coord: Coord) -> None:
-    """Thin outline on the hovered tile to anchor the cursor visually."""
+    """Thin solid outline on the hovered tile."""
     col, row = coord
     arcade.draw_lbwh_rectangle_outline(
-        col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE, (240, 240, 250, 140), 2
+        col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE, (240, 240, 250), 1
     )
 
 
 def draw_spawn_ghosts(tiles: list[Coord], pulse: float) -> None:
-    """Pulsing gold markers on tiles where a pending unit would deploy."""
-    alpha = int(120 + 70 * pulse)
+    """Pulsing gold outlines on valid deploy tiles — border-only so no alpha seams."""
+    width = int(2 + 2 * pulse)
     for coord in tiles:
         col, row = coord
         left = col * TILE_SIZE + 4
         bottom = row * TILE_SIZE + 4
-        arcade.draw_lbwh_rectangle_filled(
-            left, bottom, TILE_SIZE - 8, TILE_SIZE - 8,
-            (255, 215, 60, alpha),
-        )
         arcade.draw_lbwh_rectangle_outline(
             left, bottom, TILE_SIZE - 8, TILE_SIZE - 8,
-            COLORS["hero_accent"], 3,
+            COLORS["hero_accent"], width,
         )
 
 

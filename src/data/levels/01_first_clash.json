@@ -1,20 +1,20 @@
 {
   "name": "First Clash",
-  "width": 16,
+  "width": 18,
   "height": 12,
   "terrain": [
-    "~~~...........FF",
-    "~~~...MM......FF",
-    "~~....MM........",
-    "~.....RRRRR.....",
-    "~..FF..R........",
-    "~..FF..R........",
-    "......RRR...FF..",
-    ".......R....FF..",
-    "......MM........",
-    "......MM......~~",
-    "..............~~",
-    "FF...........~~~"
+    "~~.............FF~",
+    "~...MM......FF..~~",
+    "~...MM....RRRR..~~",
+    "~......RRR.......~",
+    "~..FF..R.........~",
+    "~..FF..RRR.......~",
+    "~......R..RRR.FF~~",
+    "~.....MM....R.FF~~",
+    "~..FF.MM....R....~",
+    "~..FF......RRR..~~",
+    "~...........R...~~",
+    "~~..........R..~~~"
   ],
   "terrain_legend": {
     ".": "plains",
@@ -28,28 +28,34 @@
     { "id": 2, "name": "Frost",  "faction": "frostmoor",  "hero": "frostqueen", "start_gold": 1000, "is_ai": true }
   ],
   "buildings": [
-    { "kind": "stronghold", "coord": [1, 1],   "owner": 1 },
-    { "kind": "barracks",   "coord": [3, 1],   "owner": 1 },
-    { "kind": "stable",     "coord": [5, 1],   "owner": 1 },
-    { "kind": "aerie",      "coord": [1, 3],   "owner": 1 },
+    { "kind": "stronghold", "coord": [2, 1],   "owner": 1 },
+    { "kind": "barracks",   "coord": [4, 1],   "owner": 1 },
+    { "kind": "stable",     "coord": [6, 2],   "owner": 1 },
+    { "kind": "aerie",      "coord": [2, 3],   "owner": 1 },
+    { "kind": "harbor",     "coord": [1, 2],   "owner": 1 },
 
-    { "kind": "stronghold", "coord": [14, 10], "owner": 2 },
-    { "kind": "barracks",   "coord": [12, 10], "owner": 2 },
-    { "kind": "stable",     "coord": [10, 10], "owner": 2 },
-    { "kind": "aerie",      "coord": [14, 8],  "owner": 2 },
+    { "kind": "stronghold", "coord": [15, 10], "owner": 2 },
+    { "kind": "barracks",   "coord": [13, 10], "owner": 2 },
+    { "kind": "stable",     "coord": [11, 9],  "owner": 2 },
+    { "kind": "aerie",      "coord": [15, 8],  "owner": 2 },
+    { "kind": "harbor",     "coord": [16, 9],  "owner": 2 },
 
-    { "kind": "harbor",     "coord": [0, 9],   "owner": null },
     { "kind": "mine",       "coord": [8, 5],   "owner": null },
-    { "kind": "mine",       "coord": [7, 6],   "owner": null }
+    { "kind": "mine",       "coord": [9, 6],   "owner": null },
+    { "kind": "mine",       "coord": [4, 8],   "owner": null },
+    { "kind": "mine",       "coord": [13, 3],  "owner": null },
+    { "kind": "barracks",   "coord": [8, 7],   "owner": null },
+    { "kind": "stable",     "coord": [10, 4],  "owner": null },
+    { "kind": "stronghold", "coord": [9, 3],   "owner": null }
   ],
   "units": [
-    { "kind": "emberlord", "coord": [2, 2], "owner": 1 },
-    { "kind": "infantry",  "coord": [3, 2], "owner": 1 },
-    { "kind": "infantry",  "coord": [4, 1], "owner": 1 },
+    { "kind": "emberlord", "coord": [3, 2],  "owner": 1 },
+    { "kind": "infantry",  "coord": [4, 2],  "owner": 1 },
+    { "kind": "infantry",  "coord": [5, 1],  "owner": 1 },
 
-    { "kind": "frostqueen", "coord": [13, 9], "owner": 2 },
-    { "kind": "infantry",   "coord": [12, 9], "owner": 2 },
-    { "kind": "infantry",   "coord": [11, 10], "owner": 2 }
+    { "kind": "frostqueen", "coord": [14, 9],  "owner": 2 },
+    { "kind": "infantry",   "coord": [13, 9],  "owner": 2 },
+    { "kind": "infantry",   "coord": [12, 10], "owner": 2 }
   ],
   "victory": { "type": "capture_strongholds" }
 }

@@ -409,12 +409,13 @@ def _draw_hp_bar(cx: float, cy: float, hp: int, max_hp: int) -> None:
 
 
 def _draw_infantry(cx: float, cy: float, s: float, team: tuple[int, int, int],
-                   faction: str = "Emberdyne") -> None:
+                   faction: str = "emberdyne") -> None:
     """A soldier: rounded helmet + visor + breastplate + shield + spear.
 
-    Faction affects the emblem on the shield (flame = Emberdyne, snowflake = Frostmoor)."""
-    # (Shadow drawn in draw_unit at static y.)
-    # Body (tabard — team color, wide at waist)
+    Faction-specific: plume uses the accent color, tabard gets an accent-colored
+    trim band at the waist, and a large faction emblem sits on the breastplate."""
+    accent = _team_accent(faction)
+    # Body tabard (team)
     arcade.draw_polygon_filled(
         [(cx - s * 0.18, cy - s * 0.32),
          (cx + s * 0.18, cy - s * 0.32),
@@ -422,26 +423,30 @@ def _draw_infantry(cx: float, cy: float, s: float, team: tuple[int, int, int],
          (cx - s * 0.22, cy + s * 0.0)],
         team,
     )
+    # Accent trim at the hem of the tabard
+    arcade.draw_lbwh_rectangle_filled(cx - s * 0.2, cy - s * 0.32, s * 0.4, 3, accent)
     # Breastplate
     arcade.draw_lbwh_rectangle_filled(cx - s * 0.16, cy, s * 0.32, s * 0.2, _STEEL)
     arcade.draw_lbwh_rectangle_outline(cx - s * 0.16, cy, s * 0.32, s * 0.2, _DARK_STEEL, 1)
+    # Large faction emblem on the breastplate — the main faction visual.
+    _draw_faction_emblem(cx, cy + s * 0.1, s * 0.22, faction)
     # Helmet (skull cap) + visor slit
     head_y = cy + s * 0.28
     arcade.draw_circle_filled(cx, head_y, s * 0.12, _STEEL)
     arcade.draw_arc_filled(cx, head_y, s * 0.2, s * 0.2, _DARK_STEEL, 180, 360)
-    arcade.draw_line(cx - s * 0.08, head_y - s * 0.02, cx + s * 0.08, head_y - s * 0.02, _SHADOW, 2)
-    # Helmet plume in team color
+    arcade.draw_line(cx - s * 0.08, head_y - s * 0.02,
+                     cx + s * 0.08, head_y - s * 0.02, _SHADOW, 2)
+    # Helmet plume in ACCENT color (pops against the team body)
     arcade.draw_polygon_filled(
         [(cx - s * 0.02, head_y + s * 0.1),
          (cx + s * 0.02, head_y + s * 0.1),
          (cx, head_y + s * 0.22)],
-        team,
+        accent,
     )
-    # Shield on left arm (faction emblem in the center)
+    # Shield: team rim, accent background, small emblem inside
     sx = cx - s * 0.3
     arcade.draw_ellipse_filled(sx, cy + s * 0.04, s * 0.14, s * 0.22, _darken(team, 0.6))
-    arcade.draw_ellipse_outline(sx, cy + s * 0.04, s * 0.14, s * 0.22, _DARK_STEEL, 1)
-    _draw_faction_emblem(sx, cy + s * 0.04, s * 0.12, faction)
+    arcade.draw_ellipse_outline(sx, cy + s * 0.04, s * 0.14, s * 0.22, accent, 2)
     # Spear (right side, diagonal)
     spear_bottom = (cx + s * 0.28, cy - s * 0.32)
     spear_top = (cx + s * 0.42, cy + s * 0.4)
@@ -454,9 +459,10 @@ def _draw_infantry(cx: float, cy: float, s: float, team: tuple[int, int, int],
 
 
 def _draw_knight(cx: float, cy: float, s: float, team: tuple[int, int, int],
-                 faction: str = "Emberdyne") -> None:
+                 faction: str = "emberdyne") -> None:
     """Mounted knight: horse silhouette beneath a lance-wielding rider.
-    Faction adds a flame or snowflake accent above the lance pennant."""
+    Accent color on plume + saddle cloth, with a big faction emblem on the tabard."""
+    accent = _team_accent(faction)
     # Horse body
     body_left = cx - s * 0.36
     body_bottom = cy - s * 0.3
@@ -486,6 +492,12 @@ def _draw_knight(cx: float, cy: float, s: float, team: tuple[int, int, int],
          (rider_x - s * 0.16, rider_y + s * 0.16)],
         team,
     )
+    # Prominent faction emblem on the tabard
+    _draw_faction_emblem(rider_x, rider_y + s * 0.04, s * 0.2, faction)
+    # Accent-colored saddle cloth hanging from the horse
+    arcade.draw_lbwh_rectangle_filled(
+        cx - s * 0.26, body_bottom - s * 0.04, s * 0.32, 4, accent
+    )
     # Rider helmet with visor
     head_y = rider_y + s * 0.26
     arcade.draw_circle_filled(rider_x, head_y, s * 0.1, _STEEL)
@@ -509,11 +521,13 @@ def _draw_knight(cx: float, cy: float, s: float, team: tuple[int, int, int],
 
 
 def _draw_wyvern(cx: float, cy: float, s: float, team: tuple[int, int, int],
-                 wing_scale: float = 1.0, faction: str = "Emberdyne") -> None:
+                 wing_scale: float = 1.0, faction: str = "emberdyne") -> None:
     """Dragon-like flyer: wide spread wings with team-colored membranes.
 
     `wing_scale` stretches the wings vertically — drive it with a sine wave for a flap effect.
+    Accent-colored wing stripes add faction flavor that reads at a distance.
     """
+    accent = _team_accent(faction)
     wing_color = team
     wing_edge = _darken(team, 0.6)
     # Left wing — the y-offsets are scaled so the tips rise/fall with wing_scale
@@ -554,9 +568,18 @@ def _draw_wyvern(cx: float, cy: float, s: float, team: tuple[int, int, int],
     # Eye (flame glow for Emberdyne, ice glow for Frostmoor)
     eye_color = _ICE if faction == "Frostmoor" else _FLAME
     arcade.draw_circle_filled(cx - s * 0.02, cy + s * 0.26, 1.8, eye_color)
-    # Wing bone ridges (team lighten)
-    arcade.draw_line(cx - s * 0.05, cy + s * 0.05, cx - s * 0.38, cy + s * 0.3, _lighten(team, 0.3), 2)
-    arcade.draw_line(cx + s * 0.05, cy + s * 0.05, cx + s * 0.38, cy + s * 0.3, _lighten(team, 0.3), 2)
+    # Wing bone ridges in the ACCENT color — distinct per faction
+    arcade.draw_line(cx - s * 0.05, cy + s * 0.05,
+                     cx - s * 0.38, cy + s * 0.3 * wing_scale, accent, 3)
+    arcade.draw_line(cx + s * 0.05, cy + s * 0.05,
+                     cx + s * 0.38, cy + s * 0.3 * wing_scale, accent, 3)
+    # A small accent-colored crest on the dragon's forehead
+    arcade.draw_polygon_filled(
+        [(cx - s * 0.04, cy + s * 0.32),
+         (cx + s * 0.04, cy + s * 0.32),
+         (cx, cy + s * 0.42)],
+        accent,
+    )
 
 
 def _draw_longship(cx: float, cy: float, s: float, team: tuple[int, int, int],
