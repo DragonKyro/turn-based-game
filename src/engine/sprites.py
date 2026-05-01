@@ -301,36 +301,60 @@ def _draw_generic_building(cx: float, cy: float, s: float, team: tuple[int, int,
 # Unit sprites
 # -----------------------------------------------------------------------------
 
-def draw_unit(u: Unit, cx: float, cy: float, dimmed: bool) -> None:
+def draw_unit(u: Unit, cx: float, cy: float, dimmed: bool, anim_time: float = 0.0) -> None:
     team = _team_color(u.owner_id)
     if dimmed:
         team = _darken(team, 0.55)
 
     size = TILE_SIZE * 0.88
     kind = u.kind
-    if kind == "infantry":
-        _draw_infantry(cx, cy, size, team)
-    elif kind == "knight":
-        _draw_knight(cx, cy, size, team)
-    elif kind == "wyvern":
-        _draw_wyvern(cx, cy, size, team)
-    elif kind == "longship":
-        _draw_longship(cx, cy, size, team)
-    elif kind == "emberlord":
-        _draw_emberlord(cx, cy, size, team, dimmed=dimmed)
-    elif kind == "frostqueen":
-        _draw_frostqueen(cx, cy, size, team, dimmed=dimmed)
-    else:
-        _draw_generic_unit(cx, cy, size, team)
 
-    # HP bar below the sprite
+    # Per-unit phase so same-kind units don't all bob in sync.
+    phase = (u.id * 0.73) % math.tau
+    # Ground shadow (static; stays put while sprite bobs).
+    arcade.draw_ellipse_filled(cx, cy - size * 0.42, size * 0.38, size * 0.08, _SHADOW)
+
+    # Compute per-kind idle offset / extras.
+    bob = 0.0
+    wing_scale = 1.0
+    rock_deg = 0.0
+    if not dimmed:  # don't animate units that already acted — looks more "at attention"
+        if kind == "wyvern":
+            wing_scale = 1.0 + 0.15 * math.sin(anim_time * 6.0 + phase)
+            bob = math.sin(anim_time * 3.0 + phase) * 1.5
+        elif kind == "longship":
+            rock_deg = math.sin(anim_time * 1.5 + phase) * 3.0
+            bob = math.sin(anim_time * 1.5 + phase) * 1.5
+        elif kind in ("emberlord", "frostqueen"):
+            bob = math.sin(anim_time * 1.8 + phase) * 1.2
+        else:
+            bob = math.sin(anim_time * 2.0 + phase) * 1.0
+
+    dy = bob
+    if kind == "infantry":
+        _draw_infantry(cx, cy + dy, size, team)
+    elif kind == "knight":
+        _draw_knight(cx, cy + dy, size, team)
+    elif kind == "wyvern":
+        _draw_wyvern(cx, cy + dy, size, team, wing_scale=wing_scale)
+    elif kind == "longship":
+        _draw_longship(cx, cy + dy, size, team, rock_deg=rock_deg)
+    elif kind == "emberlord":
+        _draw_emberlord(cx, cy + dy, size, team, dimmed=dimmed, anim_time=anim_time, phase=phase)
+    elif kind == "frostqueen":
+        _draw_frostqueen(cx, cy + dy, size, team, dimmed=dimmed, anim_time=anim_time, phase=phase)
+    else:
+        _draw_generic_unit(cx, cy + dy, size, team)
+
+    # HP bar below the sprite (fixed position, no bob, so HP is easy to read).
     _draw_hp_bar(cx, cy - size / 2 - 4, u.hp, u.max_hp)
 
-    # Hero ultimate-ready pulse ring
+    # Hero ultimate-ready pulse ring: animated radius so it "breathes".
     if isinstance(u, Hero) and u.ultimate_charge >= type(u).ultimate_charge_max:
-        arcade.draw_circle_outline(cx, cy, size / 2 + 4, _GOLD, 2)
+        pulse = 4 + 2 * math.sin(anim_time * 3.0)
+        arcade.draw_circle_outline(cx, cy + dy, size / 2 + pulse, _GOLD, 2)
 
-    # "Used" indicator: a small dot in the corner when acted
+    # "Used" indicator: small dot in the corner when acted
     if u.has_acted:
         arcade.draw_circle_filled(cx + size / 2 - 4, cy - size / 2 + 4, 3, _DARK_STEEL)
 
@@ -354,8 +378,7 @@ def _draw_hp_bar(cx: float, cy: float, hp: int, max_hp: int) -> None:
 
 def _draw_infantry(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> None:
     """A soldier: rounded helmet + visor + breastplate + shield + spear."""
-    # Feet shadow
-    arcade.draw_ellipse_filled(cx, cy - s * 0.38, s * 0.35, s * 0.08, _SHADOW)
+    # (Shadow drawn in draw_unit at static y.)
     # Body (tabard — team color, wide at waist)
     arcade.draw_polygon_filled(
         [(cx - s * 0.18, cy - s * 0.32),
@@ -397,8 +420,6 @@ def _draw_infantry(cx: float, cy: float, s: float, team: tuple[int, int, int]) -
 
 def _draw_knight(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> None:
     """Mounted knight: horse silhouette beneath a lance-wielding rider."""
-    # Ground shadow
-    arcade.draw_ellipse_filled(cx, cy - s * 0.42, s * 0.45, s * 0.08, _SHADOW)
     # Horse body
     body_left = cx - s * 0.36
     body_bottom = cy - s * 0.3
@@ -449,26 +470,28 @@ def _draw_knight(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> 
     )
 
 
-def _draw_wyvern(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> None:
-    """Dragon-like flyer: wide spread wings with team-colored membranes."""
-    # Wings first so body sits on top
+def _draw_wyvern(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                 wing_scale: float = 1.0) -> None:
+    """Dragon-like flyer: wide spread wings with team-colored membranes.
+
+    `wing_scale` stretches the wings vertically — drive it with a sine wave for a flap effect.
+    """
     wing_color = team
     wing_edge = _darken(team, 0.6)
-    # Left wing
+    # Left wing — the y-offsets are scaled so the tips rise/fall with wing_scale
     left_wing = [
-        (cx - s * 0.05, cy + s * 0.05),
-        (cx - s * 0.38, cy + s * 0.3),
-        (cx - s * 0.46, cy + s * 0.1),
+        (cx - s * 0.05, cy + s * 0.05 * wing_scale),
+        (cx - s * 0.38, cy + s * 0.3 * wing_scale),
+        (cx - s * 0.46, cy + s * 0.1 * wing_scale),
         (cx - s * 0.42, cy - s * 0.05),
         (cx - s * 0.2, cy + s * 0.0),
     ]
     arcade.draw_polygon_filled(left_wing, wing_color)
     arcade.draw_polygon_outline(left_wing, wing_edge, 2)
-    # Right wing (mirror)
     right_wing = [
-        (cx + s * 0.05, cy + s * 0.05),
-        (cx + s * 0.38, cy + s * 0.3),
-        (cx + s * 0.46, cy + s * 0.1),
+        (cx + s * 0.05, cy + s * 0.05 * wing_scale),
+        (cx + s * 0.38, cy + s * 0.3 * wing_scale),
+        (cx + s * 0.46, cy + s * 0.1 * wing_scale),
         (cx + s * 0.42, cy - s * 0.05),
         (cx + s * 0.2, cy + s * 0.0),
     ]
@@ -497,8 +520,14 @@ def _draw_wyvern(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> 
     arcade.draw_line(cx + s * 0.05, cy + s * 0.05, cx + s * 0.38, cy + s * 0.3, _lighten(team, 0.3), 2)
 
 
-def _draw_longship(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> None:
-    """Viking-style longship with striped team-colored sail."""
+def _draw_longship(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                    rock_deg: float = 0.0) -> None:
+    """Viking-style longship with striped team-colored sail.
+
+    `rock_deg` is provided for a future rocking transform; currently the wave
+    animation comes from the per-frame vertical bob applied in draw_unit.
+    """
+    _ = rock_deg
     # Water ripples under hull
     arcade.draw_line(cx - s * 0.4, cy - s * 0.35, cx - s * 0.2, cy - s * 0.35, _ICE, 2)
     arcade.draw_line(cx + s * 0.15, cy - s * 0.33, cx + s * 0.4, cy - s * 0.33, _ICE, 2)
@@ -552,7 +581,8 @@ def _draw_longship(cx: float, cy: float, s: float, team: tuple[int, int, int]) -
         arcade.draw_circle_outline(px, cy - s * 0.2, s * 0.045, _DARK_STEEL, 1)
 
 
-def _draw_emberlord(cx: float, cy: float, s: float, team: tuple[int, int, int], dimmed: bool) -> None:
+def _draw_emberlord(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                    dimmed: bool, anim_time: float = 0.0, phase: float = 0.0) -> None:
     """Emberlord: cloaked figure with a flame crown and a burning sword."""
     # Cloak (wide triangle with team color, darker)
     cloak_color = _darken(team, 0.75)
@@ -581,10 +611,11 @@ def _draw_emberlord(cx: float, cy: float, s: float, team: tuple[int, int, int], 
     # Eyes (glowing red)
     arcade.draw_circle_filled(cx - s * 0.04, head_y, 1.2, _FLAME)
     arcade.draw_circle_filled(cx + s * 0.04, head_y, 1.2, _FLAME)
-    # Flame crown: three flame tongues
-    for dx, ht in ((-s * 0.08, 0.12), (0, 0.18), (s * 0.08, 0.12)):
+    # Flame crown: three flame tongues. Each flickers with an independent offset.
+    for i, (dx, ht) in enumerate(((-s * 0.08, 0.12), (0, 0.18), (s * 0.08, 0.12))):
+        flicker = 1.0 + 0.15 * math.sin(anim_time * 8.0 + phase + i * 1.3) if not dimmed else 1.0
         base_y = head_y + s * 0.1
-        tip_y = base_y + s * ht
+        tip_y = base_y + s * ht * flicker
         arcade.draw_polygon_filled(
             [(cx + dx - 2, base_y), (cx + dx + 2, base_y), (cx + dx, tip_y)],
             _FLAME,
@@ -606,7 +637,8 @@ def _draw_emberlord(cx: float, cy: float, s: float, team: tuple[int, int, int], 
     arcade.draw_line(hilt[0] - 4, hilt[1] - 4, hilt[0] + 4, hilt[1] + 4, _GOLD, 2)
 
 
-def _draw_frostqueen(cx: float, cy: float, s: float, team: tuple[int, int, int], dimmed: bool) -> None:
+def _draw_frostqueen(cx: float, cy: float, s: float, team: tuple[int, int, int],
+                     dimmed: bool, anim_time: float = 0.0, phase: float = 0.0) -> None:
     """Frostqueen: regal figure with an ice tiara and a glowing staff."""
     # Cloak (flowing, team color)
     cloak_color = _darken(team, 0.7)
@@ -663,12 +695,14 @@ def _draw_frostqueen(cx: float, cy: float, s: float, team: tuple[int, int, int],
     orb_r = 5 if not dimmed else 3
     arcade.draw_circle_filled(staff_top[0], staff_top[1], orb_r, _ICE)
     arcade.draw_circle_outline(staff_top[0], staff_top[1], orb_r, (130, 170, 210), 1)
-    # Frost particles around orb
-    for angle in (30, 90, 150, 210, 270, 330):
-        rad = math.radians(angle)
+    # Frost particles orbiting the orb (rotation tied to anim_time for a slow swirl)
+    swirl = anim_time * 1.2 if not dimmed else 0.0
+    for i, angle in enumerate((30, 90, 150, 210, 270, 330)):
+        rad = math.radians(angle) + swirl + phase
         arcade.draw_circle_filled(
             staff_top[0] + math.cos(rad) * 8, staff_top[1] + math.sin(rad) * 8, 1, _ICE
         )
+        _ = i
 
 
 def _draw_generic_unit(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> None:

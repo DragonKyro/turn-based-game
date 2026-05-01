@@ -16,6 +16,7 @@ from src.core.coord import grid_to_pixel, pixel_to_grid
 from src.core.fog import recompute_visibility
 from src.core.game_rules import IllegalAction, apply_action
 from src.core.pathfinding import attackable_from, reachable
+from src.core.types import VisState
 from src.engine import renderer
 from src.engine.camera import Cameras
 from src.engine.input_controller import interpret_click
@@ -23,6 +24,7 @@ from src.entities.hero import Hero
 from src.ui import damage_preview
 from src.ui.build_menu import BuildMenu
 from src.ui.hud import HUD, VictoryOverlay
+from src.ui.terrain_info import TerrainInfo
 from src.ui.unit_panel import UnitPanel
 from src.world.level_loader import LevelLoadError, load_level
 
@@ -42,15 +44,18 @@ class GameView(arcade.View):
         self.build_menu: BuildMenu | None = None
         self.banner: str | None = None
         self.hover_coord: tuple[int, int] | None = None
+        self.view_player_id: int = 1   # real value set in on_show_view
 
         # AI scheduling
         self._ai_pending: bool = False
         self._ai_delay: float = 0.0
+        self._anim_time: float = 0.0  # accumulated seconds since load; drives idle animations
 
         # UI objects (arcade.Text caches live on these)
         self._hud: HUD | None = None
         self._unit_panel: UnitPanel | None = None
         self._victory_overlay: VictoryOverlay | None = None
+        self._terrain_info: TerrainInfo | None = None
         self._damage_preview_text: arcade.Text | None = None
         self._load_error_text: arcade.Text | None = None
 
@@ -62,13 +67,21 @@ class GameView(arcade.View):
             self.level = load_level(self.level_name)
             self.state = self.level.initial_state
             self.cameras.center_on(self.state.map.width, self.state.map.height)
-            recompute_visibility(self.state, self.state.current_player_id)
+            # View always belongs to the first non-AI player. Even during the AI's
+            # turn we render their perspective, so enemy movement outside the
+            # human's fog of war stays hidden.
+            self.view_player_id = next(
+                (p.id for p in self.state.players.values() if not p.is_ai),
+                self.state.current_player_id,
+            )
+            recompute_visibility(self.state, self.view_player_id)
         except LevelLoadError as e:
             self.load_error = str(e)
 
         self._hud = HUD(self.window.height)
         self._unit_panel = UnitPanel(self.window.width, self.window.height)
         self._victory_overlay = VictoryOverlay(self.window.width, self.window.height)
+        self._terrain_info = TerrainInfo(self.window.height)
         self._damage_preview_text = arcade.Text(
             "", 0, 0, COLORS["hero_accent"], font_size=12, bold=True,
         )
@@ -90,7 +103,7 @@ class GameView(arcade.View):
         assert self._hud is not None and self._unit_panel is not None
         assert self._victory_overlay is not None
 
-        view_player_id = self.state.current_player_id
+        view_player_id = self.view_player_id
         vis = self.state.players[view_player_id].visibility
 
         self.cameras.world.use()
@@ -100,7 +113,7 @@ class GameView(arcade.View):
             renderer.draw_move_range(self.reachable_tiles)
         if self.attack_tiles:
             renderer.draw_attack_range(self.attack_tiles)
-        renderer.draw_units(self.state, vis, view_player_id)
+        renderer.draw_units(self.state, vis, view_player_id, self._anim_time)
         if self.selected_unit_id is not None:
             u = self.state.units.get(self.selected_unit_id)
             if u is not None and u.is_alive:
@@ -109,7 +122,21 @@ class GameView(arcade.View):
         self._draw_damage_preview()
 
         self.cameras.ui.use()
-        self._hud.draw(self.state, view_player_id, self.banner)
+        # HUD shows whose turn it is (current player); fog/units use view_player_id.
+        self._hud.draw(self.state, self.state.current_player_id, self.banner)
+
+        # Terrain-info panel for the hovered tile (only when it is in the human's
+        # currently-visible fog set, so we don't leak info about unseen terrain).
+        if (
+            self.hover_coord is not None
+            and self.state.map.in_bounds(self.hover_coord)
+            and self._terrain_info is not None
+        ):
+            hc = self.hover_coord
+            vs = vis[hc[0]][hc[1]] if vis is not None else None
+            if vs != VisState.HIDDEN:
+                terrain = self.state.map.tile(hc).terrain
+                self._terrain_info.draw(terrain)
 
         if self.selected_unit_id is not None:
             u = self.state.units.get(self.selected_unit_id)
@@ -163,6 +190,10 @@ class GameView(arcade.View):
     def on_mouse_motion(self, x: int, y: int, _dx: int, _dy: int) -> None:
         if self.state is None:
             return
+        # Build menu owns its own hover (screen-space), bypassing world logic.
+        if self.build_menu is not None:
+            self.build_menu.on_mouse_motion(x, y)
+            # Still update hover_coord for damage preview etc.
         wx, wy = self._screen_to_world(x, y)
         coord = pixel_to_grid(wx, wy, TILE_SIZE)
         self.hover_coord = coord if self.state.map.in_bounds(coord) else None
@@ -170,17 +201,28 @@ class GameView(arcade.View):
     def on_mouse_press(self, x: int, y: int, button: int, _modifiers: int) -> None:
         if self.state is None or self.state.victory is not None:
             return
+
+        # If a build menu is open, route the click into it first.
+        if self.build_menu is not None:
+            if self.build_menu.contains_point(x, y):
+                kind = self.build_menu.on_mouse_press(x, y)
+                if kind is not None:
+                    self._try_build(kind)
+                return
+            # Click outside the menu: close and fall through to normal click handling.
+            self.build_menu = None
+
         wx, wy = self._screen_to_world(x, y)
         coord = pixel_to_grid(wx, wy, TILE_SIZE)
         if not self.state.map.in_bounds(coord):
             return
 
-        if self.build_menu is not None:
-            self.build_menu = None
-
+        # If the human clicks their own production building with no selection, open the menu.
         b = self.state.building_at(coord)
         if self.selected_unit_id is None and b is not None:
-            if b.owner_id == self.state.current_player_id and type(b).produces_kinds:
+            if (b.owner_id == self.state.current_player_id
+                    and type(b).produces_kinds
+                    and not self.state.players[self.state.current_player_id].is_ai):
                 self.build_menu = BuildMenu(building=b, gold=self.state.players[b.owner_id].gold)
                 return
 
@@ -194,6 +236,19 @@ class GameView(arcade.View):
             except IllegalAction as e:
                 self.banner = f"Illegal: {e}"
         self._update_selection(click.new_selection)
+
+    def _try_build(self, unit_kind: str) -> None:
+        """Attempt to construct a unit from the currently-open build menu."""
+        assert self.state is not None and self.build_menu is not None
+        try:
+            events = apply_action(
+                self.state,
+                BuildAction(building_id=self.build_menu.building.id, unit_kind=unit_kind),
+            )
+            self._consume_events(events)
+        except IllegalAction as e:
+            self.banner = f"Illegal: {e}"
+        self.build_menu = None
 
     def on_key_press(self, symbol: int, _modifiers: int) -> None:
         if self.state is None:
@@ -212,15 +267,7 @@ class GameView(arcade.View):
             if digit is not None:
                 kind = self.build_menu.kind_at_index(digit - 1)
                 if kind:
-                    try:
-                        events = apply_action(
-                            self.state,
-                            BuildAction(building_id=self.build_menu.building.id, unit_kind=kind),
-                        )
-                        self._consume_events(events)
-                    except IllegalAction as e:
-                        self.banner = f"Illegal: {e}"
-                    self.build_menu = None
+                    self._try_build(kind)
                 return
             return
 
@@ -258,6 +305,7 @@ class GameView(arcade.View):
     # --- AI scheduling ---
 
     def on_update(self, delta_time: float) -> None:
+        self._anim_time += delta_time
         if self._ai_pending and self.state is not None and self.state.victory is None:
             self._ai_delay -= delta_time
             if self._ai_delay <= 0:
@@ -279,6 +327,9 @@ class GameView(arcade.View):
             self._consume_events(events)
         except Exception as e:  # noqa: BLE001 — AI failure must not crash the game
             self.banner = f"AI error: {e}"
+        # Recompute the *human* player's fog after the AI acted: if an AI unit
+        # moved into our sight we need to show it; ones that left go back to EXPLORED.
+        recompute_visibility(self.state, self.view_player_id)
         self._schedule_ai_if_needed()
 
     # --- internals ---

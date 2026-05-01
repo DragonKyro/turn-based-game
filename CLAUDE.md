@@ -44,6 +44,8 @@ grep -rn "import arcade" src/core src/entities src/world
 | Damage preview (non-mutating prediction) | [src/ui/damage_preview.py](src/ui/damage_preview.py) |
 | Clickable hover button | [src/ui/button.py](src/ui/button.py) |
 | Procedural unit/building sprites | [src/engine/sprites.py](src/engine/sprites.py) |
+| Per-tile terrain decorations (deterministic variation) | [src/engine/terrain_sprites.py](src/engine/terrain_sprites.py) |
+| Hover terrain-info panel | [src/ui/terrain_info.py](src/ui/terrain_info.py) |
 | Dumb AI for is_ai players | [src/core/ai.py](src/core/ai.py) |
 | Unit base + ClassVar stats | [src/entities/unit.py](src/entities/unit.py) |
 | Hero base (ultimate_charge) | [src/entities/hero.py](src/entities/hero.py) |
@@ -64,6 +66,8 @@ grep -rn "import arcade" src/core src/entities src/world
 
 - **Coordinates.** `Coord = tuple[int, int]` is `(col, row)`, origin **bottom-left** (matches arcade's y-up). The `terrain` array in level JSON is written top-row-first for readability; the loader flips it. Never put pixel `(x, y)` and grid `(col, row)` in the same function signature — use `src.core.coord.grid_to_pixel` / `pixel_to_grid`.
 - **Camera.** Arcade 3.x `Camera2D.position` is the **center** of the viewport in world coords (not the bottom-left). `camera.unproject((screen_x, screen_y))` returns world coords. `Cameras.screen_to_world` in [src/engine/camera.py](src/engine/camera.py) wraps this. Never compute screen→world by subtracting `camera.position` manually; that assumes bottom-left and will silently misalign clicks.
+- **View vs. current player.** `GameView.view_player_id` is the **human** player (what the user sees — whose fog we render). `state.current_player_id` is whose turn it is. The two differ during the AI's turn: the HUD reads `current_player_id` (so you know it's the AI's turn), but rendering reads `view_player_id` (so you can't see enemy units moving outside your own fog). After AI actions, recompute fog for `view_player_id`, not the current player.
+- **Idle animation.** `GameView._anim_time` accumulates seconds via `on_update(delta_time)`. Pass it to `sprites.draw_unit(..., anim_time=...)`. Units get a subtle sine-wave bob; wyverns flap wings (scale), heroes get flicker/swirl effects. Units that have already acted (`has_acted=True`) are drawn dimmed AND frozen (no animation), which reads as "at attention / spent this turn."
 - **Unit/building stats** are `ClassVar`s on subclasses (lowercase, e.g. `Infantry.max_hp`), not instance fields. The base `Unit` dataclass only contains per-instance state: `id, owner_id, coord, hp, has_moved, has_acted`.
 - **`kind` is a ClassVar**, not a constructor argument. `Infantry.kind == "infantry"` matches the key in `UNIT_REGISTRY`.
 - **Tiles hold IDs, not entities.** `Tile.unit_id` and `Tile.building_id` reference `GameState.units[id]` / `GameState.buildings[id]`. Avoids circular refs and keeps maps trivially serializable.
