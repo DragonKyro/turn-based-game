@@ -13,7 +13,7 @@ Written in Python 3.11 on [`arcade`](https://api.arcade.academy/) 3.3.
 ```bash
 # From the project root:
 pip install -e ".[dev]"   # arcade + pytest + ruff
-python main.py            # open the game; Enter to load level 1; Esc to return / quit
+python embercrown.py      # open the game; Enter to load level 1; Esc to return / quit
 pytest                    # all pure-logic tests (no arcade needed)
 ```
 
@@ -47,7 +47,7 @@ All of the above work through the existing action spine ([src/core/game_rules.py
 ## Project layout
 
 ```
-main.py                           # arcade.Window entry, loads MenuView
+embercrown.py                     # arcade.Window entry, loads MenuView
 src/
   config.py                       # window size, tile size, colors, paths
   core/                           # PURE LOGIC — no arcade imports
@@ -91,7 +91,7 @@ pytest                 # whole suite
 pytest tests/test_combat.py -v   # one module
 ```
 
-All pure-logic modules (coord, map, terrain, level loader, entities) are covered. Arcade rendering is exercised by running `main.py`.
+All pure-logic modules (coord, map, terrain, level loader, entities) are covered. Arcade rendering is exercised by running `embercrown.py`.
 
 ## Roadmap
 

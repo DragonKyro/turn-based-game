@@ -26,7 +26,7 @@ grep -rn "import arcade" src/core src/entities src/world
 
 | Concern | Location |
 | --- | --- |
-| Window/event loop entry | [main.py](main.py) |
+| Window/event loop entry | [embercrown.py](embercrown.py) |
 | Global constants (tile size, window, palette) | [src/config.py](src/config.py) |
 | Coord aliases + enums (UnitClass, VisState) | [src/core/types.py](src/core/types.py) |
 | Grid math (neighbors, manhattan, grid↔pixel) | [src/core/coord.py](src/core/coord.py) |
@@ -73,7 +73,7 @@ grep -rn "import arcade" src/core src/entities src/world
 
 ```bash
 pip install -e ".[dev]"
-python main.py     # open game
+python embercrown.py   # open game
 pytest             # tests
 ```
 
