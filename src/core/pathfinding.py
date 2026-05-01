@@ -73,6 +73,60 @@ def reachable(state: GameState, unit: Unit,
     return result
 
 
+def path_to(state: GameState, unit: Unit, destination: Coord,
+            respect_fog: bool = True) -> list[Coord]:
+    """Shortest path from `unit.coord` to `destination` as a list of tiles
+    (including start and end). Returns [] if the destination is unreachable.
+
+    Used for movement animation: the UI walks a unit sprite along each tile in turn.
+    """
+    start = unit.coord
+    if start == destination:
+        return [start]
+    budget = type(unit).move
+    unit_cls = type(unit).unit_class
+    player = state.players.get(unit.owner_id)
+    vis = player.visibility if (player and respect_fog) else None
+
+    parent: dict[Coord, Coord] = {}
+    dist: dict[Coord, int] = {start: 0}
+    frontier: list[tuple[int, Coord]] = [(0, start)]
+
+    while frontier:
+        cost_here, c = heapq.heappop(frontier)
+        if cost_here > dist.get(c, IMPASSABLE):
+            continue
+        if c == destination:
+            break
+        for n in neighbors4(c):
+            if not state.map.in_bounds(n):
+                continue
+            tile = state.map.tile(n)
+            step = tile.terrain.cost_for(unit_cls)
+            if step >= IMPASSABLE:
+                continue
+            if vis is not None and vis[n[0]][n[1]] == VisState.HIDDEN:
+                continue
+            occupant = state.units.get(tile.unit_id) if tile.unit_id is not None else None
+            if occupant is not None and occupant.is_alive and occupant.owner_id != unit.owner_id:
+                continue
+            new_cost = cost_here + step
+            if new_cost > budget:
+                continue
+            if new_cost < dist.get(n, IMPASSABLE):
+                dist[n] = new_cost
+                parent[n] = c
+                heapq.heappush(frontier, (new_cost, n))
+
+    if destination not in dist:
+        return []
+    # Backtrace
+    path = [destination]
+    while path[-1] != start:
+        path.append(parent[path[-1]])
+    return list(reversed(path))
+
+
 def attackable_from(state: GameState, unit: Unit, origin: Coord) -> set[Coord]:
     """Tiles a unit could attack if it occupied `origin`.
 

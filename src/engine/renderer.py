@@ -130,9 +130,12 @@ def draw_buildings(state: GameState, vis: list[list[VisState]] | None,
 
 
 def draw_units(state: GameState, vis: list[list[VisState]] | None,
-               view_player_id: int, anim_time: float) -> None:
+               view_player_id: int, anim_time: float,
+               skip_unit_id: int | None = None) -> None:
     for u in state.units.values():
         if not u.is_alive:
+            continue
+        if skip_unit_id is not None and u.id == skip_unit_id:
             continue
         col, row = u.coord
         vstate = _vis_at(vis, col, row)
@@ -144,6 +147,16 @@ def draw_units(state: GameState, vis: list[list[VisState]] | None,
         dimmed = u.has_acted and u.owner_id == view_player_id
         faction = state.players[u.owner_id].faction
         sprites.draw_unit(u, cx, cy, dimmed, anim_time, faction=faction)
+
+
+def draw_unit_at(state: GameState, unit_id: int, cx: float, cy: float,
+                 anim_time: float) -> None:
+    """Render a specific unit at a caller-chosen pixel — used for movement animation."""
+    u = state.units.get(unit_id)
+    if u is None or not u.is_alive:
+        return
+    faction = state.players[u.owner_id].faction
+    sprites.draw_unit(u, cx, cy, dimmed=False, anim_time=anim_time, faction=faction)
 
 
 def _darken(color: tuple[int, ...], factor: float) -> tuple[int, int, int]:

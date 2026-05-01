@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from src.core.game_state import GameState
-from src.core.pathfinding import attackable_from, reachable
+from src.core.pathfinding import attackable_from, path_to, reachable
 from src.core.player import Player
 from src.core.types import VisState
 from src.entities.units.infantry import Infantry
@@ -146,6 +146,31 @@ def test_reachable_excludes_hidden_tiles():
     assert (4, 2) not in r  # hidden -> can't path there
     assert (2, 4) not in r
     assert (3, 2) in r       # still reachable (visible)
+
+
+def test_path_to_returns_sequence_of_adjacent_tiles():
+    state = _blank_state([[PLAINS] * 5] * 5)
+    u = Infantry(id=1, owner_id=1, coord=(0, 0), hp=Infantry.max_hp)
+    state.units[1] = u
+    state.map.tiles[(0, 0)].unit_id = 1
+    path = path_to(state, u, (2, 1))
+    assert path[0] == (0, 0)
+    assert path[-1] == (2, 1)
+    # Every consecutive pair is 4-adjacent
+    for a, b in zip(path, path[1:]):
+        assert abs(a[0] - b[0]) + abs(a[1] - b[1]) == 1
+
+
+def test_path_to_returns_empty_when_unreachable():
+    state = _blank_state([
+        [PLAINS, SEA, PLAINS],
+        [PLAINS, SEA, PLAINS],
+        [PLAINS, SEA, PLAINS],
+    ])
+    u = Infantry(id=1, owner_id=1, coord=(0, 1), hp=Infantry.max_hp)
+    state.units[1] = u
+    state.map.tiles[(0, 1)].unit_id = 1
+    assert path_to(state, u, (2, 1)) == []   # sea wall blocks
 
 
 def test_attackable_from_ranged_unit():

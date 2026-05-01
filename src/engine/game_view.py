@@ -22,6 +22,7 @@ from src.core.types import VisState
 from src.engine import renderer
 from src.engine.camera import Cameras
 from src.engine.input_controller import interpret_click
+from src.engine.moving_unit import MovingUnit
 from src.entities.hero import Hero
 from src.ui import damage_preview
 from src.ui.build_menu import BuildMenu
@@ -56,6 +57,8 @@ class GameView(arcade.View):
         self._ai_delay: float = 0.0
         self._anim_time: float = 0.0  # accumulated seconds since load; drives idle animations
         self._fight_scene: FightScene | None = None
+        self._moving_unit: MovingUnit | None = None
+        self._event_queue: list[dict] = []
         self._options: Options = Options.load()
 
         # UI objects (arcade.Text caches live on these)
@@ -129,7 +132,14 @@ class GameView(arcade.View):
         if self.hover_coord is not None and self.state.map.in_bounds(self.hover_coord):
             if vis is None or vis[self.hover_coord[0]][self.hover_coord[1]] != VisState.HIDDEN:
                 renderer.draw_hover(self.hover_coord)
-        renderer.draw_units(self.state, vis, view_player_id, self._anim_time)
+        skip_unit_id = self._moving_unit.unit_id if self._moving_unit else None
+        renderer.draw_units(self.state, vis, view_player_id, self._anim_time,
+                            skip_unit_id=skip_unit_id)
+        # If a unit is mid-animation, draw it at the interpolated pixel position.
+        if self._moving_unit is not None:
+            mx, my = self._moving_unit.current_pixel()
+            renderer.draw_unit_at(self.state, self._moving_unit.unit_id, mx, my,
+                                  self._anim_time)
         if self.selected_unit_id is not None:
             u = self.state.units.get(self.selected_unit_id)
             if u is not None and u.is_alive:
@@ -222,6 +232,10 @@ class GameView(arcade.View):
         # Any click skips the fight scene.
         if self._fight_scene is not None:
             self._fight_scene = None
+            self._advance_queue()
+            return
+        # Ignore clicks while a movement animation is playing.
+        if self._moving_unit is not None:
             return
 
         # If a build menu is open, route the click into it first.
@@ -333,6 +347,12 @@ class GameView(arcade.View):
         if self._fight_scene is not None:
             if symbol in (arcade.key.SPACE, arcade.key.ENTER, arcade.key.ESCAPE):
                 self._fight_scene = None
+                self._advance_queue()
+            return
+        # While a unit is mid-step, ignore gameplay keys (Esc still goes to menu).
+        if self._moving_unit is not None:
+            if symbol == arcade.key.ESCAPE:
+                self._return_to_menu()
             return
 
         if self.state.victory is not None:
@@ -395,13 +415,20 @@ class GameView(arcade.View):
 
     def on_update(self, delta_time: float) -> None:
         self._anim_time += delta_time
+        # Advance movement animation.
+        if self._moving_unit is not None:
+            self._moving_unit.tick(delta_time)
+            if self._moving_unit.done:
+                self._moving_unit = None
+                self._advance_queue()
         # Tick the fight-scene overlay if one is showing.
         if self._fight_scene is not None:
             self._fight_scene.tick(delta_time)
             if self._fight_scene.done:
                 self._fight_scene = None
-        # Pause AI while a fight scene is playing so the player can watch it.
-        if self._fight_scene is not None:
+                self._advance_queue()
+        # Pause AI while any animation is playing.
+        if self._fight_scene is not None or self._moving_unit is not None:
             return
         if self._ai_pending and self.state is not None and self.state.victory is None:
             self._ai_delay -= delta_time
@@ -460,37 +487,60 @@ class GameView(arcade.View):
             self.attack_tiles = attackable_from(self.state, u, u.coord)
 
     def _consume_events(self, events: list[dict]) -> None:
+        """Enqueue events from one action. The queue is drained as animations finish so
+        a Move followed by an Attack animates sequentially (walk first, then fight)."""
         if not events:
             return
-        parts: list[str] = []
-        for e in events:
-            t = e.get("type")
-            if t == "attack":
-                r = e["result"]
-                parts.append(
-                    f"Attack: {r.attack.final} dmg"
-                    + (f", counter {r.counter.final}" if r.counter else "")
-                )
-                if self._options.show_fight_scene:
-                    self._trigger_fight_scene(r)
-            elif t == "unit_destroyed":
-                parts.append(f"Unit {e['unit_id']} destroyed")
-            elif t == "capture_progress":
-                parts.append(f"Capture {e['progress']}/{e['threshold']}")
-            elif t == "building_captured":
-                parts.append(f"Captured building {e['building_id']}")
-            elif t == "unit_built":
-                parts.append(f"Built {e['kind']} at {e['coord']}")
-            elif t == "ultimate":
-                parts.append(f"Hero ultimate fired ({len(e['effects'])} effects)")
-            elif t == "end_turn":
-                parts.append(
-                    f"Turn {e['turn_number']}: P{e['current_player']} "
-                    f"(+{e['income_awarded']}g)"
-                )
-            elif t == "victory":
-                parts.append(f"Victory: P{e['winner_id']} ({e['reason']})")
-        self.banner = "   ".join(parts) if parts else None
+        self._event_queue.extend(events)
+        self._advance_queue()
+
+    def _advance_queue(self) -> None:
+        """Pop and handle queued events until one starts an animation (move or fight)
+        or the queue is empty. Animations resume the drain in on_update when they finish."""
+        while (
+            self._event_queue
+            and self._moving_unit is None
+            and self._fight_scene is None
+        ):
+            e = self._event_queue.pop(0)
+            self._handle_event(e)
+
+    def _handle_event(self, e: dict) -> None:
+        t = e.get("type")
+        if t == "move":
+            path = e.get("path") or []
+            if len(path) > 1:
+                self._moving_unit = MovingUnit(unit_id=e["unit_id"], path=path)
+            self._set_banner(f"Move to {e['to']}")
+        elif t == "attack":
+            r = e["result"]
+            dmg_note = (
+                f"Attack: {r.attack.final} dmg"
+                + (f", counter {r.counter.final}" if r.counter else "")
+            )
+            self._set_banner(dmg_note)
+            if self._options.show_fight_scene:
+                self._trigger_fight_scene(r)
+        elif t == "unit_destroyed":
+            self._set_banner(f"Unit {e['unit_id']} destroyed")
+        elif t == "capture_progress":
+            self._set_banner(f"Capture {e['progress']}/{e['threshold']}")
+        elif t == "building_captured":
+            self._set_banner(f"Captured building {e['building_id']}")
+        elif t == "unit_built":
+            self._set_banner(f"Built {e['kind']} at {e['coord']}")
+        elif t == "ultimate":
+            self._set_banner(f"Hero ultimate fired ({len(e['effects'])} effects)")
+        elif t == "end_turn":
+            self._set_banner(
+                f"Turn {e['turn_number']}: P{e['current_player']} "
+                f"(+{e['income_awarded']}g)"
+            )
+        elif t == "victory":
+            self._set_banner(f"Victory: P{e['winner_id']} ({e['reason']})")
+
+    def _set_banner(self, text: str) -> None:
+        self.banner = text
 
     def _trigger_fight_scene(self, result) -> None:
         """Create a one-shot fight-scene overlay from a CombatResult.

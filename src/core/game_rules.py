@@ -17,7 +17,7 @@ from src.core.combat import resolve_attack
 from src.core.economy import can_afford
 from src.core.fog import recompute_visibility
 from src.core.game_state import GameState, VictoryResult
-from src.core.pathfinding import attackable_from, reachable
+from src.core.pathfinding import attackable_from, path_to, reachable
 from src.core.turn_manager import end_turn
 from src.entities.buildings import BUILDING_REGISTRY
 from src.entities.heroes import HERO_REGISTRY
@@ -67,6 +67,9 @@ def _apply_move(state: GameState, a: MoveAction) -> list[Event]:
     if a.destination not in reach:
         raise IllegalAction(f"Destination {a.destination} not in reachable set")
 
+    # Capture the path BEFORE mutating state so the UI can animate the move.
+    path = path_to(state, u, a.destination)
+
     # update tile occupancy
     state.map.tile(u.coord).unit_id = None
     state.map.tile(a.destination).unit_id = u.id
@@ -77,7 +80,8 @@ def _apply_move(state: GameState, a: MoveAction) -> list[Event]:
     # refresh fog for the owner since we scouted new tiles
     recompute_visibility(state, u.owner_id)
 
-    return [{"type": "move", "unit_id": u.id, "from": old, "to": a.destination}]
+    return [{"type": "move", "unit_id": u.id, "from": old, "to": a.destination,
+             "path": path}]
 
 
 def _apply_attack(state: GameState, a: AttackAction) -> list[Event]:

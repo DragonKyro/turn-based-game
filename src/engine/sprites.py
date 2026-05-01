@@ -272,25 +272,30 @@ def _draw_harbor(cx: float, cy: float, s: float, team: tuple[int, int, int]) -> 
 
 
 def _draw_mine(cx: float, cy: float, s: float, _team: tuple[int, int, int]) -> None:
-    """Mine: a mountain with an entry arch and a pickaxe sign. Owner-agnostic visual."""
+    """Mine: a mountain with an entry arch and a pickaxe sign. Owner-agnostic visual.
+
+    The two-peak silhouette is rendered as two overlapping convex triangles rather than a
+    single non-convex polygon — arcade's triangle-fan fill misdraws concave shapes.
+    """
     half = s / 2
-    # Mountain silhouette (two peaks)
-    arcade.draw_polygon_filled(
-        [(cx - s * 0.45, cy - half + 3),
-         (cx + s * 0.45, cy - half + 3),
-         (cx + s * 0.15, cy + half - s * 0.05),
-         (cx,              cy + s * 0.15),
-         (cx - s * 0.2,    cy + half - s * 0.1)],
-        _STONE,
-    )
-    arcade.draw_polygon_outline(
-        [(cx - s * 0.45, cy - half + 3),
-         (cx + s * 0.45, cy - half + 3),
-         (cx + s * 0.15, cy + half - s * 0.05),
-         (cx,              cy + s * 0.15),
-         (cx - s * 0.2,    cy + half - s * 0.1)],
-        _darken(_STONE, 0.55), 1,
-    )
+    dark = _darken(_STONE, 0.55)
+    base_y = cy - half + 3
+    # Left peak (triangle): spans from left base to center, apex up-left
+    left_peak = [
+        (cx - s * 0.45, base_y),
+        (cx + s * 0.05, base_y),
+        (cx - s * 0.2,  cy + half - s * 0.1),
+    ]
+    # Right peak (triangle): spans from center to right base, apex up-right (taller)
+    right_peak = [
+        (cx - s * 0.05, base_y),
+        (cx + s * 0.45, base_y),
+        (cx + s * 0.15, cy + half - s * 0.05),
+    ]
+    arcade.draw_polygon_filled(left_peak, _STONE)
+    arcade.draw_polygon_outline(left_peak, dark, 1)
+    arcade.draw_polygon_filled(right_peak, _STONE)
+    arcade.draw_polygon_outline(right_peak, dark, 1)
     # Mine entrance arch
     ent_w = s * 0.22
     ent_h = s * 0.3
@@ -778,11 +783,11 @@ def _draw_archer(cx: float, cy: float, s: float, team: tuple[int, int, int],
                      _STEEL, 1)
     arcade.draw_line(bow_x + s * 0.14 + string_offset, cy + s * 0.0,
                      bow_x, cy - s * 0.22, _STEEL, 1)
-    # Arrow on the string
+    # Arrow on the string (shaft + triangular head — 3-point triangle, proper winding)
     arcade.draw_line(bow_x + s * 0.14 + string_offset, cy,
                      cx + s * 0.2, cy, _darken(_WOOD, 0.5), 2)
     arcade.draw_polygon_filled(
-        [(cx + s * 0.2, cy), (cx + s * 0.18, cy + 3), (cx + s * 0.3, cy), (cx + s * 0.18, cy - 3)],
+        [(cx + s * 0.3, cy), (cx + s * 0.2, cy + 3), (cx + s * 0.2, cy - 3)],
         _STEEL,
     )
     # Faction emblem on the tabard belt
@@ -1054,17 +1059,19 @@ def _draw_leaf(cx: float, cy: float, size: float,
 
 def _draw_lightning(cx: float, cy: float, size: float,
                      color: tuple[int, int, int]) -> None:
-    """Zigzag lightning bolt, filled polygon."""
+    """Zigzag lightning bolt as thick line segments (polygon fill misbehaves on a
+    self-intersecting lightning shape)."""
     pts = [
-        (cx - size * 0.15, cy + size * 0.45),
-        (cx + size * 0.10, cy + size * 0.10),
-        (cx - size * 0.05, cy + size * 0.05),
-        (cx + size * 0.18, cy - size * 0.45),
-        (cx - size * 0.02, cy - size * 0.10),
-        (cx + size * 0.12, cy - size * 0.05),
+        (cx - size * 0.2, cy + size * 0.45),
+        (cx + size * 0.05, cy + size * 0.1),
+        (cx - size * 0.05, cy - size * 0.02),
+        (cx + size * 0.2, cy - size * 0.45),
     ]
-    arcade.draw_polygon_filled(pts, color)
-    arcade.draw_polygon_outline(pts, _darken(color, 0.45), 1)
+    for i in range(len(pts) - 1):
+        arcade.draw_line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], color, 3)
+    # Small core highlight
+    arcade.draw_line(pts[1][0], pts[1][1], pts[2][0], pts[2][1],
+                     _lighten(color, 0.3), 1)
 
 
 def _draw_wave(cx: float, cy: float, size: float,
